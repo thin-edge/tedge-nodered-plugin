@@ -1,0 +1,360 @@
+#!/bin/sh
+set -e
+
+EXIT_OK=0
+EXIT_USAGE=1
+EXIT_FAILURE=2
+# EXIT_RETRY=3
+
+usage() {
+    echo "
+USAGE
+    node-red plugin for thin-edge.io
+
+    $0 <COMMAND> [MODULE_NAME] [--module-version [VERSION]] [--file [FILE]]
+
+    $0 install <MODULE_NAME> [--module-version [VERSION]] [--file [FILE]]
+    $0 list
+    $0 remove <MODULE_NAME> [--module-version [VERSION]]
+    $0 prepare <MODULE_NAME> [--module-version [VERSION]] [--file [FILE]]
+    $0 finalize <MODULE_NAME> [--module-version [VERSION]] [--file [FILE]]
+    $0 update-list <MODULE_NAME> [--module-version [VERSION]] [--file [FILE]]
+    "
+}
+
+log() { echo "$@" >&2; }
+
+if [ $# -lt 1 ]; then
+    log "Invalid number of positional arguments."
+    usage
+    exit "$EXIT_USAGE"
+fi
+
+COMMAND="$1"
+shift
+MODULE_VERSION=latest
+FILE=
+
+# settings
+PLUGIN_NAME=nodered
+NODERED_USER="iotadmin"
+NODERED_HOME="/home/iotadmin"
+NODERED_DIR="${NODERED_HOME}/.node-red"
+PROP_ACTIVE_PROJECT="active-project"
+NODERED_API="http://localhost:1880"
+ACTIVE_PROJECT_FILE="$NODERED_DIR/.active_project"
+
+
+# Only read the file if it has the correct permissions, to prevent people from editing it
+# and side-loading functions
+SETTINGS_FILE=/etc/tedge-nodered/env
+FOUND_FILE=
+if [ -f "$SETTINGS_FILE" ]; then
+    FOUND_FILE=$(find "$SETTINGS_FILE" -perm 644 | head -1)
+fi
+
+if [ -n "$FOUND_FILE" ]; then
+    log "Loading setting file: $SETTINGS_FILE"
+    # shellcheck disable=SC1091,SC1090
+    . "$SETTINGS_FILE"
+fi
+
+check_project_mode() {
+    PROJECTS=$(curl "$NODERED_API/projects" --silent)
+    if [ -z "$PROJECTS" ]; then
+        log "Warning: node-red projects are not enabled. node-red needs to have projects enabled for this plugin to work"
+        exit 1
+    fi
+}
+
+is_root() {
+    [ "$(id -u)" -eq 0 ]
+}
+
+restart_node_red() {
+    log "Restarting node-red"
+    if node-red-restart >/dev/null; then
+        log "Restarted node-red (wait for a few seconds before proceeding)"
+    else
+        log "Failed to restart node-red."
+        exit "$EXIT_FAILURE"
+    fi
+}
+
+activate_project() {
+    name="$1"
+    # TODO: Do a dynamic check and wait fo the endpoint to be available
+
+    CURRENT_PROJECT=$(curl "$NODERED_API/projects" --silent | jq -r '.active // ""')
+
+    if [ "$CURRENT_PROJECT" != "$name" ]; then
+        log "Changing node-red project. from=$CURRENT_PROJECT, to=$name"
+    fi
+
+    log "Activating the project: $name"
+    response=$(curl --silent -H "Content-Type: application/json" -XPUT "$NODERED_API/projects/$name" -d '{"active":true,"clearContext":true}')
+
+    if [ "$(echo "$response" | jq -r '.active')" = "$name" ]; then
+        log "\nSuccessfully activated project. name=$name"
+    else
+        log "\nFailed however sometimes the service needs to be restated before the setting is active. response=$response"
+    fi
+
+    #
+    # Restart node-red (twice!?!?)
+    # FIXME: There seems to be a weird node-red initialization problem
+    # when activating a project. Sometimes it can take to restarts before it is actually active.
+    # The root cause is currently unknown, however restarting the service twice works for some reason
+    # though it is not a nice solution
+    #
+    restart_node_red
+    sleep 2
+    restart_node_red
+    sleep 5
+
+    # Validate if it really was activated
+    CURRENT_PROJECT=$(curl "$NODERED_API/projects" --silent | jq -r '.active // ""')
+    if [ "$CURRENT_PROJECT" != "$name" ]; then
+        log "node-red project did not activate. Unexpected project name. got=$CURRENT_PROJECT, wanted=$name"
+        exit "$EXIT_FAILURE"
+    fi
+
+    log "node-red project was activate successfully. name=$CURRENT_PROJECT"
+}
+
+install_project_from_tarball() {
+    file="$1"
+    version="$2"
+    module_dir="$3"
+
+    SUDO=""
+    if is_root; then
+        # Extract using the user node-red user to prevent file reading problems
+        SUDO="sudo -u $NODERED_USER"
+    fi
+
+    if [ -d "$module_dir" ]; then
+        log "Removing previously existing folder. path=$module_dir"
+        # TODO: Check if the folder should be backed up or not. Only delete directory contents, keep the folder?
+        rm -Rf "$module_dir"
+    fi
+
+    if [ ! -d "$module_dir" ]; then
+        log "Creating project directory. path=$module_dir"
+        $SUDO mkdir -p "$module_dir"
+    fi
+
+    if $SUDO tar -xvozf "$file" -C "$module_dir"; then
+        log "Successfully installed package"
+        echo "$version" | $SUDO tee "$module_dir/version"
+    else
+        log "Failed to install package"
+        exit "$EXIT_FAILURE"
+    fi
+}
+
+
+install_project_from_git_repo() {
+    url="$1"
+    version="$2"
+    module_dir="$3"
+    DEPTH=10
+
+    # Check if it is a git repo or not
+    IS_GIT=$(git -C "$module_dir" rev-parse --is-inside-work-tree 2>/dev/null ||:)
+    if [ -d "$module_dir" ] && [ "$IS_GIT" != "true" ]; then
+        log "Removing existing non-git project folder as it will be replaced by a git repo. path=$module_dir"
+        rm -Rf "$module_dir"
+    fi
+
+    if [ ! -d "$module_dir" ]; then
+        log "Cloning new repository: url=$url, path=$module_dir, depth=$DEPTH"
+
+        SUDO=""
+        if is_root; then
+            # Extract using the user node-red user to prevent file reading problems
+            SUDO="sudo -u $NODERED_USER"
+        fi
+        $SUDO git clone "$url" --depth "$DEPTH" "$module_dir"
+    fi
+
+    if [ "$version" = "latest" ]; then
+        log "Pulling the latest version. depth=$DEPTH"
+        $SUDO git -C "$module_dir" pull --depth "$DEPTH" --ff-only
+    else
+        log "Updating to specific commit"
+        if ! $SUDO git -C "$module_dir" checkout "$version"; then
+            log "Failed to checkout specific commit: $version"
+            exit "$EXIT_FAILURE"
+        fi
+    fi
+}
+
+
+# argument parsing
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --module-version)
+        MODULE_VERSION="$2"
+        shift
+        ;;
+    --file)
+        FILE="$2"
+        shift
+        ;;
+    -h|--help)
+        usage
+        exit "$EXIT_USAGE"
+        ;;
+    --*|-*)
+        log "Unknown option $1"
+        exit "$EXIT_USAGE"
+        ;;
+    *)
+        MODULE_NAME="${1}"
+
+        # Trim any leading whitespace
+        # TODO: Check why this occurs when calling update-list...there might be a problem with the read loop.
+        MODULE_NAME=$(echo "$MODULE_NAME" | sed -E 's/^\s*//g')
+
+        if [ -z "$MODULE_NAME" ]; then
+            log "Ignoring unknown positional argument: $1"
+        fi
+      ;;
+  esac
+  shift
+done
+
+
+case "$COMMAND" in
+    list)
+        if ! command -v node-red-pi >/dev/null 2>&1; then
+            log "node-red-pi is not installed. Skipping plugin"
+            exit 0
+        fi
+
+        if [ ! -d "$NODERED_DIR" ]; then
+            echo "nodered directory does not exist. path=$NODERED_DIR"
+            exit 0
+        fi
+        # -------------------------------------------------------------------
+        # Mode: Projects
+        # -------------------------------------------------------------------
+        log "Scanning for node-red projects"
+
+        # Report the active project
+        ACTIVE_PROJECT=$(curl "$NODERED_API/projects" --silent | jq -r '.active // "none"')
+
+        # Check other projects
+        PROJECTS=$(curl "$NODERED_API/projects" --silent | jq -r '.projects[]')
+
+        for PROJECT in $PROJECTS; do
+            if [ "$PROJECT" = "$ACTIVE_PROJECT" ]; then
+                curl "$NODERED_API/projects/$PROJECT" --silent | jq -r '["active-project", .name], [.name, .version] | @tsv'
+            else
+                # node-red only allows querying the active project. So we have to resort to checking the package.json
+                jq -r '[.name, .version] | @tsv' < "$NODERED_DIR/projects/$PROJECT/package.json"
+            fi
+        done
+        ;;
+
+    install)
+
+        #
+        # Check for special project activating package
+        # This package does not really exist, the version name is just
+        # used to indicate which flow or project should be activated
+        #
+        if [ "$MODULE_NAME" = "$PROP_ACTIVE_PROJECT" ]; then
+            log "Setting active project: name=$MODULE_VERSION"
+            printf "%s" "$MODULE_VERSION" > "$ACTIVE_PROJECT_FILE"
+            exit 0
+        fi
+
+        check_project_mode
+
+        log "Installing ${PLUGIN_NAME} package: ${MODULE_NAME}:${MODULE_VERSION}"
+
+        if [ ! -f "$FILE" ]; then
+            log "Package file not found"
+            exit "$EXIT_FAILURE"
+        fi
+
+        log "debug: copying artifact to temp storage"
+        cp "$FILE" "/tmp/_$(basename "$FILE").tmp"
+
+        # -------------------------------------------------------------------
+        # Mode: Project
+        # -------------------------------------------------------------------
+        MODULE_DIR="$NODERED_DIR/projects/$MODULE_NAME"
+
+        # Detect the type of package
+        if tar -tzf "$FILE" >/dev/null 2>&1; then
+            log "Detected package type. type=tarball"
+            install_project_from_tarball "$FILE" "$MODULE_VERSION" "$MODULE_DIR"
+        else
+            PROJECT_URL=$(grep "REPO=" "$FILE" | sed -E 's/^REPO=//g')
+
+            if [ -n "$PROJECT_URL" ]; then
+                log "Detected package type. type=url"
+                install_project_from_git_repo "$PROJECT_URL" "$MODULE_VERSION" "$MODULE_DIR"
+            else
+                log "Invalid package type. file=$FILE"
+                exit "$EXIT_FAILURE"
+            fi
+        fi
+
+        # Check if this is necessary if the api is abstracting the git access now
+        if command -v git >/dev/null 2>&1; then
+            git config --global --add safe.directory "$MODULE_DIR" || log "Not a git repository. path=$MODULE_DIR"
+        fi
+
+        #
+        # TODO: Install dependencies
+        #
+        #
+        #cd "$NODERED_DIR"
+        # add the modules you want to install and put this script into your standard .node-red path
+        #sudo -u "$NODERED_USER" npm i --unsafe-perm --save --no-progress --no-update-notifier --no-audit --no-fund node-red-contrib-uibuilder
+        ;;
+
+    remove)
+        # don't fail if it does not exist
+        log "Removing ${PLUGIN_NAME} package: ${MODULE_NAME}:${MODULE_VERSION}"
+
+        PROJECT_DIR="$NODERED_DIR/projects/$MODULE_NAME"
+        log "Removing node-red project. path=$PROJECT_DIR"
+
+        if grep -F "$MODULE_NAME" "$ACTIVE_PROJECT_FILE" -q; then
+            rm -f "$ACTIVE_PROJECT_FILE"
+        fi
+
+        # TODO: Should the project be official deregistered from nodered before it is removed?
+        rm -Rf "$PROJECT_DIR"
+        ;;
+
+    prepare)
+        ;;
+
+    finalize)
+        # Activate the project package (if needed)
+
+        # TODO: Before activating the flow or project, check that the project or flow file really exist.
+        # If not then revert to the last know active state.
+        if [ -f "$ACTIVE_PROJECT_FILE" ]; then
+            NEW_ACTIVE_PROJECT=$(head -n1 "$ACTIVE_PROJECT_FILE")
+
+            # TODO: Is there a way to check if the project is already active and does not need a restart?
+            if [ -n "$NEW_ACTIVE_PROJECT" ]; then
+                activate_project "$NEW_ACTIVE_PROJECT"
+            fi
+        fi
+        ;;
+
+    update-list)
+        # Let thin-edge.io call the script for each plugin
+        exit "$EXIT_USAGE"
+        ;;
+esac
+
+exit "$EXIT_OK"

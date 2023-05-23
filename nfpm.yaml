@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=https://nfpm.goreleaser.com/static/schema.json
+---
+name: tedge-nodered-plugin
+arch: all
+platform: linux
+version: ${SEMVER}
+section: misc
+priority: optional
+maintainer: Reuben Miller <reuben.d.miller@gmail.com>
+description: thin-edge.io node-red plugin for node-red project management
+vendor: thin-edge.io
+homepage: https://github.com/reubenmiller/tedge-nodered-plugin
+license: Apache License 2.0
+depends:
+  - jq
+  - curl
+recommends:
+  - git
+apk:
+  # Use noarch instead of "all"
+  arch: noarch
+contents:
+  - src: ./src/sm-plugin/*
+    dst: /etc/tedge/sm-plugins/
+    file_info:
+      mode: 0755
+      owner: tedge
+      group: tedge
