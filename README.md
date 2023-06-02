@@ -1,10 +1,8 @@
 # Tedge node-red plugin
 
-:telescope: Experiment - Just researching what a Node-RED integration with thin-edge.io could look like using Node-RED projects and a custom software management plugin.
-
 ## Plugin summary
 
-Install/remove node-red projects on a device.
+Install/remove node-red projects on a device using thin-edge.io software management plugin.
 
 ### What will be deployed to the device?
 
@@ -15,7 +13,6 @@ Install/remove node-red projects on a device.
 ### Activating a project
 
 Node-red supports deploying multiple projects to a device however only one project can be active at one time. The `tedge-nodered-plugin` supports installing multiple projects, and the active project can be controlled by a special (magic) package name
-
 
 A project can be activated by using a special package name and version.
 
