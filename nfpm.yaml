@@ -6,10 +6,10 @@ platform: linux
 version: ${SEMVER}
 section: misc
 priority: optional
-maintainer: Reuben Miller <reuben.d.miller@gmail.com>
+maintainer: Community <community@thin-edge.io>
 description: thin-edge.io node-red plugin for node-red project management
 vendor: thin-edge.io
-homepage: https://github.com/reubenmiller/tedge-nodered-plugin
+homepage: https://github.com/thin-edge/tedge-nodered-plugin
 license: Apache License 2.0
 depends:
   - jq
