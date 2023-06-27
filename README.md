@@ -1,5 +1,54 @@
 # Tedge node-red plugin
 
+## Pre-requisites
+
+Before you can use the plugin you need to full-fill the following requirements on your device.
+
+1. You need to have node-red already installed on your device. If you don't already have it then check out the [Node-RED documentation](https://nodered.org/docs/getting-started/)
+
+2. Enable Node-RED projects by editing the `settings.js` file.
+
+    The `editorTheme.projects` settings needs to be changed to `true`. Below shows an example after the setting has been made.
+
+    ```js
+    {
+        module.exports = {
+            // ... other settings
+            editorTheme: {
+                // ... other settings
+                projects: true,
+                workflow: {
+                    mode: "manual"
+                }
+            }
+        }
+    }
+
+    You will need to restart Node-RED for the setting to take effect.
+
+    ```sh
+    node-red restart
+    ```
+
+3. After the Node-RED installation, you need to provide some information about the node-red installation to help the plugin know where to find it.
+
+    Create the following folder:
+
+    ```sh
+    sudo mkdir /etc/tedge-nodered
+    ```
+
+    Then add the following contents to the `/etc/tedge-nodered` file. Replace `myuser` with the appropriate user where Node-RED was installed under.
+
+    **File: /etc/tedge-nodered/env**
+
+    ```sh
+    NODERED_USER="myuser"
+    NODERED_HOME="/home/myuser"
+    NODERED_DIR="/home/myuser/.node-red"
+    ACTIVE_PROJECT_FILE="/home/myuser/.node-red/.active_project"
+    ```
+
 ## Plugin summary
 
 Install/remove node-red projects on a device using thin-edge.io software management plugin.
