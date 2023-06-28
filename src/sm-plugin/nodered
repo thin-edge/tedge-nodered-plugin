@@ -126,7 +126,7 @@ activate_project() {
     if [ "$(echo "$response" | jq -r '.active')" = "$name" ]; then
         log "\nSuccessfully activated project. name=$name"
     else
-        log "\nFailed however sometimes the service needs to be restated before the setting is active. response=$response"
+        log "\nFailed however sometimes the service needs to be restarted before the setting is active. response=$response"
     fi
 
     #
@@ -148,7 +148,7 @@ activate_project() {
         exit "$EXIT_FAILURE"
     fi
 
-    log "node-red project was activate successfully. name=$CURRENT_PROJECT"
+    log "node-red project was activated successfully. name=$CURRENT_PROJECT"
 }
 
 install_project_from_tarball() {
@@ -349,17 +349,37 @@ case "$COMMAND" in
 
     remove)
         # don't fail if it does not exist
+
+        # Support removing the project when the user removes the
+        # active project.
+        # This might be changed to actually just disable the project in node-red
+        # but the API is unclear how to do this. So for now just remove the project.
+        # The user can always just disable the node-red service if they want to disable
+        # the project temporarily
+        if [ "$MODULE_NAME" = "$PROP_ACTIVE_PROJECT" ]; then
+            log "Setting project name from active project property: name=$MODULE_VERSION"
+            MODULE_NAME="$MODULE_VERSION"
+            # we don't know really care about the module version in this case
+            MODULE_VERSION=""
+        fi
+
         log "Removing ${PLUGIN_NAME} package: ${MODULE_NAME}:${MODULE_VERSION}"
 
         PROJECT_DIR="$NODERED_DIR/projects/$MODULE_NAME"
         log "Removing node-red project. path=$PROJECT_DIR"
 
-        if grep -F "$MODULE_NAME" "$ACTIVE_PROJECT_FILE" -q; then
+        requires_restart=0
+        if grep -F "$MODULE_NAME" "$ACTIVE_PROJECT_FILE" -q >/dev/null 2>&1; then
             rm -f "$ACTIVE_PROJECT_FILE"
+            requires_restart=1
         fi
 
-        # TODO: Should the project be official deregistered from nodered before it is removed?
         rm -Rf "$PROJECT_DIR"
+
+        if [ "$requires_restart" = "1" ]; then
+            restart_node_red
+            sleep 5
+        fi
         ;;
 
     prepare)
