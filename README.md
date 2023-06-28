@@ -30,25 +30,6 @@ Before you can use the plugin you need to full-fill the following requirements o
     node-red restart
     ```
 
-3. After the Node-RED installation, you need to provide some information about the node-red installation to help the plugin know where to find it.
-
-    Create the following folder:
-
-    ```sh
-    sudo mkdir /etc/tedge-nodered
-    ```
-
-    Then add the following contents to the `/etc/tedge-nodered` file. Replace `myuser` with the appropriate user where Node-RED was installed under.
-
-    **File: /etc/tedge-nodered/env**
-
-    ```sh
-    NODERED_USER="myuser"
-    NODERED_HOME="/home/myuser"
-    NODERED_DIR="/home/myuser/.node-red"
-    ACTIVE_PROJECT_FILE="/home/myuser/.node-red/.active_project"
-    ```
-
 ## Plugin summary
 
 Install/remove node-red projects on a device using thin-edge.io software management plugin.
