@@ -2,33 +2,7 @@
 
 ## Pre-requisites
 
-Before you can use the plugin you need to full-fill the following requirements on your device.
-
-1. You need to have node-red already installed on your device. If you don't already have it then check out the [Node-RED documentation](https://nodered.org/docs/getting-started/)
-
-2. Enable Node-RED projects by editing the `settings.js` file.
-
-    The `editorTheme.projects` settings needs to be changed to `true`. Below shows an example after the setting has been made.
-
-    ```js
-    {
-        module.exports = {
-            // ... other settings
-            editorTheme: {
-                // ... other settings
-                projects: true,
-                workflow: {
-                    mode: "manual"
-                }
-            }
-        }
-    }
-
-    You will need to restart Node-RED for the setting to take effect.
-
-    ```sh
-    node-red restart
-    ```
+You need to have node-red already installed on your device. If you don't already have it then check out the [Node-RED documentation](https://nodered.org/docs/getting-started/).
 
 ## Plugin summary
 
