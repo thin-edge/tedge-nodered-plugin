@@ -363,6 +363,20 @@ case "$COMMAND" in
         ;;
 
     prepare)
+        # Enable Node-RED projects feature (required by this plugin)
+        if ! grep -F "NODE_RED_ENABLE_PROJECTS=" "$NODERED_DIR/EnvironmentFile" -q >/dev/null 2>&1; then
+            SUDO=""
+            if is_root; then
+                # Extract using the user node-red user to prevent file reading problems
+                SUDO="sudo -u $NODERED_USER"
+            fi
+            log "Enabling Node-RED projects. Adding NODE_RED_ENABLE_PROJECTS=true to $NODERED_DIR/EnvironmentFile"
+            echo "NODE_RED_ENABLE_PROJECTS=true" | $SUDO tee "$NODERED_DIR/EnvironmentFile" >/dev/null
+
+            # Restart is required after activating project feature
+            restart_node_red
+            sleep 5
+        fi
         ;;
 
     finalize)
