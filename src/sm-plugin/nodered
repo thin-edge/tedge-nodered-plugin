@@ -300,7 +300,6 @@ case "$COMMAND" in
             exit 0
         fi
 
-        check_project_mode
 
         log "Installing ${PLUGIN_NAME} package: ${MODULE_NAME}:${MODULE_VERSION}"
 
@@ -397,6 +396,16 @@ case "$COMMAND" in
             restart_node_red
             sleep 5
         fi
+
+        # Check if the api is reachable as this is an indication if it is running or not
+        if ! curl --silent -H "Content-Type: application/json" -XGET "$NODERED_API/projects" 2>/dev/null; then
+            log "Starting node-red as the endpoint was not reachable"
+            restart_node_red
+            sleep 5
+        fi
+
+        # Verify that the project feature is enabled
+        check_project_mode
         ;;
 
     finalize)

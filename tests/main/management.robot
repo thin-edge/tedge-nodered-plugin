@@ -46,3 +46,13 @@ Uninstall node-red project via Cumulocity using the active project
     Should Not Contain    ${mo}    nodered-demo
     Should Not Contain    ${mo}    active-project
     Cumulocity.Should Have Services    name=nodered-temperature-flow    status=down    service_type=nodered
+
+Install new project when nodered is not running
+    ${operation}=    Cumulocity.Execute Shell Command    text=sudo systemctl stop nodered
+    Operation Should Be SUCCESSFUL    ${operation}
+
+    ${binary_url}=    Cumulocity.Create Inventory Binary    nodered-demo    nodered-project    file=${CURDIR}/../testdata/nodered-demo__main@c7c6b5d.tar.gz
+    ${operation}=    Cumulocity.Install Software    nodered-demo,latest::nodered,${binary_url}    active-project,nodered-demo::nodered
+    Operation Should Be SUCCESSFUL    ${operation}
+    Cumulocity.Device Should Have Installed Software    nodered-demo,0.0.1
+    Cumulocity.Should Have Services    name=nodered-temperature-flow    status=up    service_type=nodered
