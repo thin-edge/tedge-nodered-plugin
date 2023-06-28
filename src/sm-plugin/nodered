@@ -37,12 +37,10 @@ FILE=
 
 # settings
 PLUGIN_NAME=nodered
-NODERED_USER="iotadmin"
-NODERED_HOME="/home/iotadmin"
-NODERED_DIR="${NODERED_HOME}/.node-red"
+NODERED_USER=""
+NODERED_DIR=""
 PROP_ACTIVE_PROJECT="active-project"
 NODERED_API="http://localhost:1880"
-ACTIVE_PROJECT_FILE="$NODERED_DIR/.active_project"
 
 
 # Only read the file if it has the correct permissions, to prevent people from editing it
@@ -58,6 +56,37 @@ if [ -n "$FOUND_FILE" ]; then
     # shellcheck disable=SC1091,SC1090
     . "$SETTINGS_FILE"
 fi
+
+# Try to detect .node-red folder
+if [ -z "$NODERED_DIR" ]; then
+    if [ -d /home ]; then
+        for userhome in /home/*; do
+            if [ -d "$userhome/.node-red" ]; then
+                NODERED_DIR="$userhome/.node-red"
+                NODERED_USER=$(basename "$userhome")
+                break
+            fi
+        done
+    elif [ -d /root/.node-red ]; then
+        NODERED_DIR=/root/.node-red
+        NODERED_USER=root
+    fi
+fi
+
+# Fail if .node-red folder could not be found
+if [ -z "$NODERED_DIR" ]; then
+    log "Could not detect Node-RED directory. Please set the NODERED_DIR variable in $SETTINGS_FILE and try again"
+    exit "$EXIT_USAGE"
+fi
+if [ ! -d "$NODERED_DIR" ]; then
+    log "Node-RED directory (NODERED_DIR) does not exist. path=$NODERED_DIR":
+    exit "$EXIT_USAGE"
+fi
+
+log "Using node-red settings: path=$NODERED_DIR, user=$NODERED_USER"
+
+# Set derived settings after loading any settings file
+ACTIVE_PROJECT_FILE="$NODERED_DIR/.active_project"
 
 check_project_mode() {
     PROJECTS=$(curl "$NODERED_API/projects" --silent)
