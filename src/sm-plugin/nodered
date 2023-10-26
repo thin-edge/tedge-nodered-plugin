@@ -110,6 +110,11 @@ restart_node_red() {
     fi
 }
 
+escape_url() {
+    # Replace any spaces with the url escape char, %20
+    echo "$1" | sed 's/ /%20/g'
+}
+
 activate_project() {
     name="$1"
     # TODO: Do a dynamic check and wait fo the endpoint to be available
@@ -121,7 +126,7 @@ activate_project() {
     fi
 
     log "Activating the project: $name"
-    response=$(curl --silent -H "Content-Type: application/json" -XPUT "$NODERED_API/projects/$name" -d '{"active":true,"clearContext":true}')
+    response=$(curl --silent -H "Content-Type: application/json" -XPUT "$(escape_url "$NODERED_API/projects/$name")" -d '{"active":true,"clearContext":true}')
 
     if [ "$(echo "$response" | jq -r '.active')" = "$name" ]; then
         log "\nSuccessfully activated project. name=$name"
@@ -277,14 +282,17 @@ case "$COMMAND" in
         # Check other projects
         PROJECTS=$(curl "$NODERED_API/projects" --silent | jq -r '.projects[]')
 
-        for PROJECT in $PROJECTS; do
+        # Use while loop and here string to support project names with spaces in their names
+        while read -r PROJECT; do
             if [ "$PROJECT" = "$ACTIVE_PROJECT" ]; then
-                curl "$NODERED_API/projects/$PROJECT" --silent | jq -r '["active-project", .name], [.name, .version] | @tsv'
+                curl "$(escape_url "$NODERED_API/projects/$PROJECT")" --silent | jq -r '["active-project", .name], [.name, .version] | @tsv'
             else
                 # node-red only allows querying the active project. So we have to resort to checking the package.json
                 jq -r '[.name, .version] | @tsv' < "$NODERED_DIR/projects/$PROJECT/package.json"
             fi
-        done
+        done <<EOF
+$PROJECTS
+EOF
         ;;
 
     install)

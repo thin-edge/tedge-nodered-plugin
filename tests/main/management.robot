@@ -14,6 +14,14 @@ Install node-red from github url
     Cumulocity.Device Should Have Installed Software    nodered-demo
     Cumulocity.Should Have Services    name=nodered-temperature-flow    status=up    service_type=nodered
 
+Install node-red from github url with space in its name
+    ${binary_url}=    Cumulocity.Create Inventory Binary    nodered-demo    nodered-project    file=${CURDIR}/../testdata/nodered-demo.cfg
+    ${operation}=    Cumulocity.Install Software    nodered demo project,latest::nodered,${binary_url}
+    # ${operation}=    Cumulocity.Install Software    nodered demo project,latest::nodered,${binary_url}    active-project,nodered-demo::nodered
+    Operation Should Be SUCCESSFUL    ${operation}
+    Cumulocity.Device Should Have Installed Software    nodered-demo
+    Cumulocity.Should Have Services    name=nodered-temperature-flow    status=up    service_type=nodered
+
 Install node-red from tarball
     ${binary_url}=    Cumulocity.Create Inventory Binary    nodered-demo    nodered-project    file=${CURDIR}/../testdata/nodered-demo__main@c7c6b5d.tar.gz
     ${operation}=    Cumulocity.Install Software    nodered-demo,latest::nodered,${binary_url}    active-project,nodered-demo::nodered
