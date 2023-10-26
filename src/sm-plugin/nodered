@@ -126,7 +126,8 @@ activate_project() {
     fi
 
     log "Activating the project: $name"
-    response=$(curl --silent -H "Content-Type: application/json" -XPUT "$(escape_url "$NODERED_API/projects/$name")" -d '{"active":true,"clearContext":true}')
+    escaped_name="$(escape_url "$name")"
+    response=$(curl --silent -H "Content-Type: application/json" -XPUT "$NODERED_API/projects/$escaped_name" -d '{"active":true,"clearContext":true}')
 
     if [ "$(echo "$response" | jq -r '.active')" = "$name" ]; then
         log "\nSuccessfully activated project. name=$name"
@@ -285,10 +286,13 @@ case "$COMMAND" in
         # Use while loop and here string to support project names with spaces in their names
         while read -r PROJECT; do
             if [ "$PROJECT" = "$ACTIVE_PROJECT" ]; then
-                curl "$(escape_url "$NODERED_API/projects/$PROJECT")" --silent | jq -r '["active-project", .name], [.name, .version] | @tsv'
+                escaped_name="$(escape_url "$PROJECT")"
+                curl "$NODERED_API/projects/$escaped_name" --silent | jq -r '["active-project", .name], [.name, .version] | @tsv'
             else
-                # node-red only allows querying the active project. So we have to resort to checking the package.json
-                jq -r '[.name, .version] | @tsv' < "$NODERED_DIR/projects/$PROJECT/package.json"
+                if [ -f "$NODERED_DIR/projects/$PROJECT/package.json" ]; then
+                    # node-red only allows querying the active project. So we have to resort to checking the package.json
+                    jq -r '[.name, .version] | @tsv' < "$NODERED_DIR/projects/$PROJECT/package.json"
+                fi
             fi
         done <<EOF
 $PROJECTS
@@ -422,7 +426,7 @@ EOF
         # TODO: Before activating the flow or project, check that the project or flow file really exist.
         # If not then revert to the last know active state.
         if [ -f "$ACTIVE_PROJECT_FILE" ]; then
-            NEW_ACTIVE_PROJECT=$(head -n1 "$ACTIVE_PROJECT_FILE")
+            NEW_ACTIVE_PROJECT="$(head -n1 "$ACTIVE_PROJECT_FILE")"
 
             # TODO: Is there a way to check if the project is already active and does not need a restart?
             if [ -n "$NEW_ACTIVE_PROJECT" ]; then
