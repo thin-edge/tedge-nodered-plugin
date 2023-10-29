@@ -19,6 +19,8 @@ USAGE
     $0 prepare <MODULE_NAME> [--module-version [VERSION]] [--file [FILE]]
     $0 finalize <MODULE_NAME> [--module-version [VERSION]] [--file [FILE]]
     $0 update-list <MODULE_NAME> [--module-version [VERSION]] [--file [FILE]]
+
+    # /etc/tedge/sm-plugins/nodered install example01 --module-version
     "
 }
 
@@ -30,8 +32,6 @@ if [ $# -lt 1 ]; then
     exit "$EXIT_USAGE"
 fi
 
-COMMAND="$1"
-shift
 MODULE_VERSION=latest
 FILE=
 
@@ -41,6 +41,7 @@ NODERED_USER=""
 NODERED_DIR=""
 PROP_ACTIVE_PROJECT="active-project"
 NODERED_API="http://localhost:1880"
+NODERED_START_SERVICE="1"
 
 
 # Only read the file if it has the correct permissions, to prevent people from editing it
@@ -89,7 +90,7 @@ log "Using node-red settings: path=$NODERED_DIR, user=$NODERED_USER"
 ACTIVE_PROJECT_FILE="$NODERED_DIR/.active_project"
 
 check_project_mode() {
-    PROJECTS=$(curl "$NODERED_API/projects" --silent)
+    PROJECTS=$(nodered_api GET /projects)
     if [ -z "$PROJECTS" ]; then
         log "Warning: node-red projects are not enabled. node-red needs to have projects enabled for this plugin to work"
         exit 1
@@ -102,32 +103,26 @@ is_root() {
 
 restart_node_red() {
     log "Restarting node-red"
-    if node-red-restart >/dev/null; then
+    if systemctl restart nodered.service >/dev/null 2>&1; then
         log "Restarted node-red (wait for a few seconds before proceeding)"
+        sleep 5
     else
         log "Failed to restart node-red."
-        exit "$EXIT_FAILURE"
     fi
-}
-
-escape_url() {
-    # Replace any spaces with the url escape char, %20
-    echo "$1" | sed 's/ /%20/g'
 }
 
 activate_project() {
     name="$1"
-    # TODO: Do a dynamic check and wait fo the endpoint to be available
+    CURRENT_PROJECT=$(nodered_api GET /projects | jq -r '.active // ""')
 
-    CURRENT_PROJECT=$(curl "$NODERED_API/projects" --silent | jq -r '.active // ""')
-
-    if [ "$CURRENT_PROJECT" != "$name" ]; then
-        log "Changing node-red project. from=$CURRENT_PROJECT, to=$name"
+    if [ "$CURRENT_PROJECT" = "$name" ]; then
+        log "Project is already active, nothing to do. name=$name"
+        return
     fi
 
+    log "Changing node-red project. from=$CURRENT_PROJECT, to=$name"
     log "Activating the project: $name"
-    escaped_name="$(escape_url "$name")"
-    response=$(curl --silent -H "Content-Type: application/json" -XPUT "$NODERED_API/projects/$escaped_name" -d '{"active":true,"clearContext":true}')
+    response=$(nodered_api PUT "/projects/$name" -d '{"active":true,"clearContext":true}')
 
     if [ "$(echo "$response" | jq -r '.active')" = "$name" ]; then
         log "\nSuccessfully activated project. name=$name"
@@ -135,26 +130,34 @@ activate_project() {
         log "\nFailed however sometimes the service needs to be restarted before the setting is active. response=$response"
     fi
 
-    #
-    # Restart node-red (twice!?!?)
-    # FIXME: There seems to be a weird node-red initialization problem
-    # when activating a project. Sometimes it can take to restarts before it is actually active.
-    # The root cause is currently unknown, however restarting the service twice works for some reason
-    # though it is not a nice solution
-    #
-    restart_node_red
     sleep 2
-    restart_node_red
-    sleep 5
 
     # Validate if it really was activated
-    CURRENT_PROJECT=$(curl "$NODERED_API/projects" --silent | jq -r '.active // ""')
+    CURRENT_PROJECT=$(nodered_api GET /projects | jq -r '.active // ""')
     if [ "$CURRENT_PROJECT" != "$name" ]; then
         log "node-red project did not activate. Unexpected project name. got=$CURRENT_PROJECT, wanted=$name"
         exit "$EXIT_FAILURE"
     fi
 
     log "node-red project was activated successfully. name=$CURRENT_PROJECT"
+}
+
+project_exists() {
+    name="$1"
+    [ "$(nodered_api GET /projects | jq '.projects | index("'"$name"'")')" != "null" ]
+}
+
+create_project() {
+    name="$1"
+    url="$2"
+    body="$(printf '{"name":"%s","credentialSecret":"","git":{"remotes":{"origin":{"url":"%s","username":"","password":""}}}}' "$name" "$url")"
+    nodered_api POST /projects -d "$body"
+}
+
+is_project_active() {
+    name="$1"
+    active_project=$(nodered_api GET /projects | jq -r '.active // ""')
+    [ "$name" = "$active_project" ]
 }
 
 install_project_from_tarball() {
@@ -170,7 +173,6 @@ install_project_from_tarball() {
 
     if [ -d "$module_dir" ]; then
         log "Removing previously existing folder. path=$module_dir"
-        # TODO: Check if the folder should be backed up or not. Only delete directory contents, keep the folder?
         rm -Rf "$module_dir"
     fi
 
@@ -190,41 +192,55 @@ install_project_from_tarball() {
 
 
 install_project_from_git_repo() {
-    url="$1"
-    version="$2"
-    module_dir="$3"
-    DEPTH=10
+    name="$1"
+    url="$2"
+    version="$3"
+    module_dir="$4"
 
-    # Check if it is a git repo or not
-    IS_GIT=$(git -C "$module_dir" rev-parse --is-inside-work-tree 2>/dev/null ||:)
-    if [ -d "$module_dir" ] && [ "$IS_GIT" != "true" ]; then
-        log "Removing existing non-git project folder as it will be replaced by a git repo. path=$module_dir"
-        rm -Rf "$module_dir"
-    fi
-
-    if [ ! -d "$module_dir" ]; then
-        log "Cloning new repository: url=$url, path=$module_dir, depth=$DEPTH"
-
-        SUDO=""
-        if is_root; then
-            # Extract using the user node-red user to prevent file reading problems
-            SUDO="sudo -u $NODERED_USER"
-        fi
-        $SUDO git clone "$url" --depth "$DEPTH" "$module_dir"
-    fi
-
-    if [ "$version" = "latest" ]; then
-        log "Pulling the latest version. depth=$DEPTH"
-        $SUDO git -C "$module_dir" pull --depth "$DEPTH" --ff-only
+    if ! project_exists "$name"; then
+        log "Registering new project with nodered: name=$name, url=$url, path=$module_dir"
+        create_project "$name" "$url"
     else
-        log "Updating to specific commit"
-        if ! $SUDO git -C "$module_dir" checkout "$version"; then
-            log "Failed to checkout specific commit: $version"
-            exit "$EXIT_FAILURE"
+        log "Project is already registered with nodered: name=$name, url=$url, path=$module_dir"
+
+        # Project needs to be active before it can be pulled!
+        if is_project_active "$name"; then
+            nodered_api POST "/projects/$name/pull" -d '{}' -f
         fi
     fi
+
+    # Check if this is necessary if the api is abstracting the git access now
+    if command -v git >/dev/null 2>&1; then
+        git config --global --add safe.directory "$module_dir" || log "Not a git repository. path=$module_dir"
+    fi
+
+    # Fix permissions
+    SUDO=""
+    if is_root; then
+        # Extract using the user node-red user to prevent file reading problems
+        SUDO="sudo -u $NODERED_USER"
+    fi
+    chown -R "$NODERED_USER:$NODERED_USER" "$module_dir"
 }
 
+nodered_api() {
+    METHOD="$1"
+    URL="$2"
+    shift
+    shift
+    # Replace any spaces with the url escape char, %20
+    ESCAPED_URL=$(echo "$URL" | sed 's/ /%20/g' | sed 's/^\///')
+    log "Using nodered api: $METHOD $NODERED_API/$ESCAPED_URL $*"
+    curl \
+        --silent \
+        -X "$METHOD" \
+        -H "Node-Red-Api-Version: v2" \
+        -H "Content-Type: application/json" \
+        "$NODERED_API/$ESCAPED_URL" \
+        "$@"
+}
+
+COMMAND=
 
 # argument parsing
 while [ $# -gt 0 ]; do
@@ -246,14 +262,18 @@ while [ $# -gt 0 ]; do
         exit "$EXIT_USAGE"
         ;;
     *)
-        MODULE_NAME="${1}"
+        if [ -z "$COMMAND" ]; then
+            COMMAND="$1"
+        else
+            MODULE_NAME="$1"
 
-        # Trim any leading whitespace
-        # TODO: Check why this occurs when calling update-list...there might be a problem with the read loop.
-        MODULE_NAME=$(echo "$MODULE_NAME" | sed -E 's/^\s*//g')
+            # Trim any leading whitespace
+            # TODO: Check why this occurs when calling update-list...there might be a problem with the read loop.
+            MODULE_NAME=$(echo "$MODULE_NAME" | sed -E 's/^\s*//g')
 
-        if [ -z "$MODULE_NAME" ]; then
-            log "Ignoring unknown positional argument: $1"
+            if [ -z "$MODULE_NAME" ]; then
+                log "Ignoring unknown positional argument: $1"
+            fi
         fi
       ;;
   esac
@@ -277,21 +297,21 @@ case "$COMMAND" in
         # -------------------------------------------------------------------
         log "Scanning for node-red projects"
 
-        # Report the active project
-        ACTIVE_PROJECT=$(curl "$NODERED_API/projects" --silent | jq -r '.active // "none"')
+        # Report the active project (fallback to empty list of nodered is not running)
+        RESPONSE=$(nodered_api GET /projects || echo '{"projects":[]}')
+        ACTIVE_PROJECT=$(echo "$RESPONSE" | jq -r '.active // "none"')
 
         # Check other projects
-        PROJECTS=$(curl "$NODERED_API/projects" --silent | jq -r '.projects[]')
+        PROJECTS=$(echo "$RESPONSE" | jq -r '.projects[]')
 
         # Use while loop and here string to support project names with spaces in their names
         while read -r PROJECT; do
             if [ "$PROJECT" = "$ACTIVE_PROJECT" ]; then
-                escaped_name="$(escape_url "$PROJECT")"
-                curl "$NODERED_API/projects/$escaped_name" --silent | jq -r '["active-project", .name], [.name, .version] | @tsv'
+                nodered_api GET "/projects/$PROJECT" | jq -r "[\"active-project\", .name], [\"$PROJECT\", .version] | @tsv"
             else
                 if [ -f "$NODERED_DIR/projects/$PROJECT/package.json" ]; then
                     # node-red only allows querying the active project. So we have to resort to checking the package.json
-                    jq -r '[.name, .version] | @tsv' < "$NODERED_DIR/projects/$PROJECT/package.json"
+                    jq -r "[\"$PROJECT\", .version] | @tsv" < "$NODERED_DIR/projects/$PROJECT/package.json"
                 fi
             fi
         done <<EOF
@@ -308,10 +328,12 @@ EOF
         #
         if [ "$MODULE_NAME" = "$PROP_ACTIVE_PROJECT" ]; then
             log "Setting active project: name=$MODULE_VERSION"
+            if [ -f "$ACTIVE_PROJECT_FILE" ]; then
+                cp "$ACTIVE_PROJECT_FILE" "$ACTIVE_PROJECT_FILE.backup"
+            fi
             printf "%s" "$MODULE_VERSION" > "$ACTIVE_PROJECT_FILE"
             exit 0
         fi
-
 
         log "Installing ${PLUGIN_NAME} package: ${MODULE_NAME}:${MODULE_VERSION}"
 
@@ -337,26 +359,14 @@ EOF
 
             if [ -n "$PROJECT_URL" ]; then
                 log "Detected package type. type=url"
-                install_project_from_git_repo "$PROJECT_URL" "$MODULE_VERSION" "$MODULE_DIR"
+                install_project_from_git_repo "$MODULE_NAME" "$PROJECT_URL" "$MODULE_VERSION" "$MODULE_DIR"
             else
                 log "Invalid package type. file=$FILE"
                 exit "$EXIT_FAILURE"
             fi
         fi
-
-        # Check if this is necessary if the api is abstracting the git access now
-        if command -v git >/dev/null 2>&1; then
-            git config --global --add safe.directory "$MODULE_DIR" || log "Not a git repository. path=$MODULE_DIR"
-        fi
-
-        #
-        # TODO: Install dependencies
-        #
-        #
-        #cd "$NODERED_DIR"
-        # add the modules you want to install and put this script into your standard .node-red path
-        #sudo -u "$NODERED_USER" npm i --unsafe-perm --save --no-progress --no-update-notifier --no-audit --no-fund node-red-contrib-uibuilder
         ;;
+
 
     remove)
         # don't fail if it does not exist
@@ -370,26 +380,55 @@ EOF
         if [ "$MODULE_NAME" = "$PROP_ACTIVE_PROJECT" ]; then
             log "Setting project name from active project property: name=$MODULE_VERSION"
             MODULE_NAME="$MODULE_VERSION"
-            # we don't know really care about the module version in this case
+            # we don't know or care about the module version in this case
             MODULE_VERSION=""
         fi
 
         log "Removing ${PLUGIN_NAME} package: ${MODULE_NAME}:${MODULE_VERSION}"
 
-        PROJECT_DIR="$NODERED_DIR/projects/$MODULE_NAME"
-        log "Removing node-red project. path=$PROJECT_DIR"
+        if is_project_active "$MODULE_NAME"; then
+            #
+            # Removing an active project currently requires nodered to be stopped
+            # and the project be manually removed and configuration files are edited (not ideal!)
+            #
+            # TODO: Update once nodered has a better way of handling this via API
+            # 
+            log "Project is already active. nodered does not support disabling an active project, so we are doing it manually"
+            systemctl disable nodered.service ||:
+            systemctl stop nodered.service ||:
 
-        requires_restart=0
-        if grep -F "$MODULE_NAME" "$ACTIVE_PROJECT_FILE" -q >/dev/null 2>&1; then
-            rm -f "$ACTIVE_PROJECT_FILE"
-            requires_restart=1
+            log "Manually removing project folder: $NODERED_DIR/projects/$MODULE_NAME"
+            rm -Rf "$NODERED_DIR/projects/$MODULE_NAME"
+
+            # Manually edit projects file
+            NODERED_PROJECT_CONFIG="$NODERED_DIR/.config.projects.json"
+
+            if [ -f "$NODERED_PROJECT_CONFIG" ]; then
+                # Backup file
+                cp "$NODERED_PROJECT_CONFIG" "$NODERED_PROJECT_CONFIG.backup"
+
+                # Edit config file
+                log "Editing $NODERED_PROJECT_CONFIG file to remove '$MODULE_NAME' project"
+                jq "del(.projects.\"$MODULE_NAME\", .activeProject)" "$NODERED_PROJECT_CONFIG" > "${NODERED_PROJECT_CONFIG}.new"
+                mv "${NODERED_PROJECT_CONFIG}.new" "${NODERED_PROJECT_CONFIG}"
+                chown "$NODERED_USER:$NODERED_USER" "${NODERED_PROJECT_CONFIG}"
+            fi
+
+            systemctl enable nodered.service ||:
+            systemctl start nodered.service ||:
+            sleep 5
+        else
+            #
+            # Remove non-active project (via api)
+            #
+            if project_exists "$MODULE_NAME"; then
+                log "Removing node-red project via api. name=$MODULE_NAME"
+                nodered_api DELETE "/projects/$MODULE_NAME"
+            fi
         fi
 
-        rm -Rf "$PROJECT_DIR"
-
-        if [ "$requires_restart" = "1" ]; then
-            restart_node_red
-            sleep 5
+        if grep -F "$MODULE_NAME" "$ACTIVE_PROJECT_FILE" -q >/dev/null 2>&1; then
+            rm -f "$ACTIVE_PROJECT_FILE"
         fi
         ;;
 
@@ -406,14 +445,12 @@ EOF
 
             # Restart is required after activating project feature
             restart_node_red
-            sleep 5
         fi
 
         # Check if the api is reachable as this is an indication if it is running or not
-        if ! curl --silent -H "Content-Type: application/json" -XGET "$NODERED_API/projects" 2>/dev/null; then
+        if ! nodered_api GET /projects 2>/dev/null; then
             log "Starting node-red as the endpoint was not reachable"
             restart_node_red
-            sleep 5
         fi
 
         # Verify that the project feature is enabled
@@ -424,13 +461,20 @@ EOF
         # Activate the project package (if needed)
 
         # TODO: Before activating the flow or project, check that the project or flow file really exist.
-        # If not then revert to the last know active state.
+        # If not then revert to the last know active state. Use last known state which is stored here: "$ACTIVE_PROJECT_FILE.backup"
         if [ -f "$ACTIVE_PROJECT_FILE" ]; then
             NEW_ACTIVE_PROJECT="$(head -n1 "$ACTIVE_PROJECT_FILE")"
 
-            # TODO: Is there a way to check if the project is already active and does not need a restart?
             if [ -n "$NEW_ACTIVE_PROJECT" ]; then
-                activate_project "$NEW_ACTIVE_PROJECT"
+                if ! project_exists "$NEW_ACTIVE_PROJECT"; then
+                    log "Cannot active project as it nodered does not recognize it. name=$NEW_ACTIVE_PROJECT"
+                    exit "$EXIT_FAILURE"
+                fi
+                if is_project_active "$NEW_ACTIVE_PROJECT"; then
+                    log "project is already activated. name=$NEW_ACTIVE_PROJECT"
+                else
+                    activate_project "$NEW_ACTIVE_PROJECT"
+                fi
             fi
         fi
         ;;
