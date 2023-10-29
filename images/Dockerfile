@@ -14,8 +14,5 @@ RUN apt-get update \
         jq \
         curl
 
-# Add node-red settings (which projects feature activated)
-COPY --chown=iotadmin:iotadmin images/files/settings.js /home/iotadmin/.node-red/
-
 # Add custom sm-plugins
 COPY src/sm-plugin/nodered /etc/tedge/sm-plugins/
