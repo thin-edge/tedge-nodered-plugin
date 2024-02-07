@@ -1,4 +1,4 @@
-FROM ghcr.io/thin-edge/tedge-demo-main-systemd:20230517.2
+FROM ghcr.io/thin-edge/tedge-demo-main-systemd:latest
 
 # Install node-red
 RUN curl -sL https://raw.githubusercontent.com/node-red/linux-installers/master/deb/update-nodejs-and-nodered > /tmp/install-nodered.sh \
