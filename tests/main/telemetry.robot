@@ -27,5 +27,7 @@ node-red status should publish to health endpoint
 Custom Setup
     Set Main Device
     ${binary_url}=    Cumulocity.Create Inventory Binary    nodered-demo    nodered-project    file=${CURDIR}/../testdata/nodered-demo.cfg
-    ${operation}=    Cumulocity.Install Software    nodered-demo,latest::nodered,${binary_url}    active-project,nodered-demo::nodered
+    ${operation}=    Cumulocity.Install Software
+    ...    {"name":"nodered-demo", "version":"latest", "softwareType":"nodered", "url":"${binary_url}"}
+    ...    {"name":"active-project", "version":"nodered-demo", "softwareType":"nodered"}
     Operation Should Be SUCCESSFUL    ${operation}
