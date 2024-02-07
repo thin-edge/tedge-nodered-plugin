@@ -25,12 +25,12 @@ jobs:
       # Checkout either the PR or the branch
       - name: Checkout PR
         if: ${{ github.event_name == 'pull_request_target' }}
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }} # Check out the code of the PR. Only after the manual approval process
 
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         if: ${{ github.event_name != 'pull_request_target' }}
 
       - name: create .env file
@@ -42,7 +42,7 @@ jobs:
           echo 'C8Y_PASSWORD="${{ secrets.C8Y_PASSWORD }}"' >> .env
           cat .env
 
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.9'
           cache: 'pip'
@@ -66,7 +66,7 @@ jobs:
         run: just test
 
       - name: Upload test results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: reports
@@ -95,9 +95,9 @@ jobs:
     needs: [test]
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Download reports
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: reports
         path: reports
