@@ -1,7 +1,10 @@
 FROM ghcr.io/thin-edge/tedge-demo-main-systemd:latest
 
 ARG TEST_USER=iotadmin
-RUN useradd -ms /bin/bash "${TEST_USER}" && echo "${TEST_USER}:${TEST_USER}" | chpasswd && adduser "${TEST_USER}" sudo
+RUN useradd -ms /bin/bash "${TEST_USER}" \
+    && echo "${TEST_USER}:${TEST_USER}" | chpasswd \
+    && adduser "${TEST_USER}" sudo \
+    && echo '%sudo ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/all
 
 # Install node-red
 RUN curl -sL https://raw.githubusercontent.com/node-red/linux-installers/master/deb/update-nodejs-and-nodered > /tmp/install-nodered.sh \
