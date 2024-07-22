@@ -153,17 +153,17 @@ tar cvzf "$ARCHIVE" .
     Then add the version
 
     ```sh
-    c8y software versions create --software nodered-demo --version "$VERSION::nodered" --file ./nodered-demo__master@32256bb.tar.gz
+    c8y software versions create --software nodered-demo --version "$VERSION" --file ./nodered-demo__master@32256bb.tar.gz
 
     # Or using wildcards
-    c8y software versions create --software nodered-demo --version "$VERSION::nodered" --file ./nodered-demo__*@*.tar.gz
+    c8y software versions create --software nodered-demo --version "$VERSION" --file ./nodered-demo__*@*.tar.gz
     ```
 
 3. Create an active flow software entry to control which item should be active. There should be one per flow
 
     ```sh
     c8y software create --name active-flow --description "Active node-red flow" --data softwareType=nodered
-    c8y software versions create --software active-flow --version "nodered-demo::nodered" --url " "
+    c8y software versions create --software active-flow --version "nodered-demo" --url " "
     ```
 
 ### Uploading a project using an external URL
@@ -177,7 +177,7 @@ tar cvzf "$ARCHIVE" .
 2. Create a software version item in Cumulocity IoT
 
     ```sh
-    c8y software versions create --software nodered-demo --version "latest::nodered" --file ./tests/testdata/nodered-demo.cfg
+    c8y software versions create --software nodered-demo --version "latest" --file ./tests/testdata/nodered-demo.cfg
     ```
 
 ## Future ideas
