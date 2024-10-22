@@ -183,3 +183,36 @@ tar cvzf "$ARCHIVE" .
 ## Future ideas
 
 * How to spawn to node-red instances to support applying multiple flows on the same device. Each instance must use a different port / service.
+
+
+# TODO:
+
+* How to replace the target mosquitto broker setting
+* How to deploy a node-red container and connect it to the broker
+    * Running in demo mode (new network), but using a fixed name would cause problem spawning
+    * 
+
+# Option 1: tedge-container-plugin detects which docker network it is in, and then adds any deploy
+
+* container-group: Requires editing yaml, e.g. Variable replacement, or just assume?
+
+    ```yaml
+    # Newer docker compose syntax
+    networks:
+        tedge:
+            name: <name>
+            external: true   # Check exact property name
+
+    # Older docker compose syntax
+    networks:
+        tedge:
+            external_name: <name>
+    ```
+* 
+
+```
+
+CONTAINER_NETWORK_ID=$(docker inspect "$(hostname)" | jq -r '.[0].NetworkSettings.Networks | to_entries | first | .key')
+
+CONTAINER_NETWORK_CONFIG=$(docker inspect "$(hostname)" | jq -r '.[0].NetworkSettings.Networks | to_entries | first | .value')
+```

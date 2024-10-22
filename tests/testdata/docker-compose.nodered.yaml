@@ -1,0 +1,12 @@
+services:
+  nodered:
+    image: nodered/node-red:4.0.3-22-minimal
+    environment:
+      - NODE_RED_ENABLE_PROJECTS=true
+    ports:
+      - 1880:1880
+    volumes:
+      - node_red_data:/data
+
+volumes:
+  node_red_data:
