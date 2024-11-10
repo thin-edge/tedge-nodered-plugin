@@ -1,9 +1,8 @@
 *** Settings ***
 Resource    ../resources/common.robot
-Library    Cumulocity
-Library    DeviceLibrary
 
 Suite Setup    Custom Setup
+Test Teardown    Collect Logs
 
 *** Test Cases ***
 
@@ -25,7 +24,10 @@ node-red status should publish to health endpoint
 *** Keywords ***
 
 Custom Setup
-    Set Main Device
+    ${DEVICE_SN}=    Setup
+    Set Suite Variable    $DEVICE_SN
+    Cumulocity.External Identity Should Exist    ${DEVICE_SN}
+
     ${binary_url}=    Cumulocity.Create Inventory Binary    nodered-demo    nodered-project    file=${CURDIR}/../testdata/nodered-demo.cfg
     ${operation}=    Cumulocity.Install Software
     ...    {"name":"nodered-demo", "version":"latest", "softwareType":"nodered", "url":"${binary_url}"}

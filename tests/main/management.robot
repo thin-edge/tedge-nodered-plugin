@@ -1,9 +1,8 @@
 *** Settings ***
 Resource    ../resources/common.robot
-Library    Cumulocity
-Library    DeviceLibrary
 
-Suite Setup    Set Main Device
+Suite Setup    Suite Setup
+Test Teardown    Collect Logs
 
 *** Variables ***
 ${PROJECT_TARBALL}    ${CURDIR}/../testdata/nodered-demo__main@a6293b6.tar.gz
@@ -77,6 +76,11 @@ Install node-red from github url with space in its name
 
 *** Keywords ***
 
+Suite Setup
+    ${DEVICE_SN}=    Setup
+    Set Suite Variable    $DEVICE_SN
+    Cumulocity.External Identity Should Exist    ${DEVICE_SN}
+    
 Remove nodered project
     [Arguments]    ${name}
     ${operation}=    Cumulocity.Uninstall Software    {"name": "${name}", "version": "latest", "softwareType": "nodered"}

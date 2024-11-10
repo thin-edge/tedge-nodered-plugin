@@ -1,22 +1,24 @@
 *** Settings ***
 Library    Cumulocity
+Library    DeviceLibrary    bootstrap_script=bootstrap.sh
 
 *** Variables ***
-
-${DEVICE_ID}         %{DEVICE_ID=main}
-${CHILD_DEVICE_1}    ${DEVICE_ID}_child01
-${CHILD_DEVICE_2}    ${DEVICE_ID}_child02
 
 # Cumulocity settings
 &{C8Y_CONFIG}        host=%{C8Y_BASEURL= }    username=%{C8Y_USER= }    password=%{C8Y_PASSWORD= }    tenant=%{C8Y_TENANT= }
 
+# Docker adapter settings (to control which image is used in the system tests).
+# The user just needs to set the IMAGE env variable
+&{DOCKER_CONFIG}    image=%{IMAGE=}
+
 *** Keywords ***
 
-Set Main Device
-    Cumulocity.Set Device    ${DEVICE_ID}
+Collect Logs
+    Collect Workflow Logs
+    Collect Systemd Logs
 
-Set Child Device1
-    Cumulocity.Set Device    ${CHILD_DEVICE_1}
+Collect Systemd Logs
+    Execute Command    sudo journalctl -n 10000
 
-Set Child Device2
-    Cumulocity.Set Device    ${CHILD_DEVICE_2}
+Collect Workflow Logs
+    Execute Command    cat /var/log/tedge/agent/*
