@@ -61,25 +61,6 @@ The following packages are required to use the plugin:
 
 * Activating a new project for the first time does not seem to work for reasons unknown, however restarting the `nodered` service seems to fix this. The root cause should be investigated as it is probably a sign that an API call is missing or the install sequence is wrong.
 
-## Development
-
-### Start demo
-
-1. Start the demo
-
-    ```sh
-    just up
-    ```
-
-2. Open the exposed container port [http://localhost:1880](http://localhost:1880)
-
-
-### Stop demo
-
-```sh
-just down
-```
-
 ## Design
 
 ### Proposed workflow of a node-red project
