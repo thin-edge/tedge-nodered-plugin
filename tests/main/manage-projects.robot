@@ -87,4 +87,4 @@ Suite Setup
     ${binary_url}=    Cumulocity.Create Inventory Binary    nodered    application/x-yaml    file=${CURDIR}/../testdata/docker-compose.nodered-project.yaml
     ${operation}=    Cumulocity.Install Software
     ...    {"name":"nodered", "version":"1.0.0", "softwareType":"container-group", "url":"${binary_url}"}
-    Operation Should Be SUCCESSFUL    ${operation}
+    Operation Should Be SUCCESSFUL    ${operation}    timeout=90

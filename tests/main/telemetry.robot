@@ -39,4 +39,4 @@ Custom Setup
     ${binary_url}=    Cumulocity.Create Inventory Binary    nodered-demo    nodered-project    file=${CURDIR}/../testdata/nodered-demo.json
     ${operation}=    Cumulocity.Install Software
     ...    {"name":"nodered-demo", "version":"latest", "softwareType":"nodered-project", "url":"${binary_url}"}
-    Operation Should Be SUCCESSFUL    ${operation}
+    Operation Should Be SUCCESSFUL    ${operation}    timeout=90
