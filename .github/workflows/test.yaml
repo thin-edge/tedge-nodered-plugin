@@ -61,9 +61,26 @@ jobs:
             tests/requirements.txt
 
       - uses: taiki-e/install-action@just
+
+      #
+      # Build
+      #
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: false
       - name: Install dependencies
         run: |
-          just build-local
+          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
+          go install github.com/goreleaser/goreleaser/v2@latest
+      - name: Build package (for testing)
+        run: just build-local
+
+      #
+      # Test
+      #
+      - name: Install dependencies
+        run: |
           just venv
           just build-test
 
