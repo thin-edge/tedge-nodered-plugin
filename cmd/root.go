@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/thin-edge/tedge-nodered-plugin/cli/nodered_flow"
+	"github.com/thin-edge/tedge-nodered-plugin/cli/nodered_project"
 	"github.com/thin-edge/tedge-nodered-plugin/pkg/cli"
 )
 
@@ -84,7 +85,11 @@ func init() {
 	})
 	rootCmd.AddCommand(
 		nodered_flow.NewCommand(cliConfig),
+		nodered_project.NewCommand(cliConfig),
 	)
+
+	// Don't show usage on errors
+	rootCmd.SilenceUsage = true
 
 	rootCmd.PersistentFlags().String("log-level", "info", "Log level")
 	rootCmd.PersistentFlags().StringVarP(&cliConfig.ConfigFile, "config", "c", "", "Configuration file")

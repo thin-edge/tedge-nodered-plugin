@@ -1,10 +1,9 @@
 /*
 Copyright © 2024 thin-edge.io <info@thin-edge.io>
 */
-package nodered_flow
+package nodered_project
 
 import (
-	"errors"
 	"log/slog"
 
 	"github.com/spf13/cobra"
@@ -23,24 +22,20 @@ func NewRemoveCommand(ctx cli.Cli) *cobra.Command {
 	command := &RemoveCommand{}
 	cmd := &cobra.Command{
 		Use:   "remove",
-		Short: "Remove flows",
+		Short: "Remove project",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			slog.Debug("Executing", "cmd", cmd.CalledAs(), "args", args)
+			projectName := args[0]
 
 			client := nodered.NewClient(GetAPI())
 
-			flows, err := client.GetFlows()
-			if err != nil {
+			// Note: This will fail if the current project is active
+			if err := client.ProjectDelete(projectName); err != nil {
 				return err
 			}
-			errs := make([]error, 0)
-			for _, flow := range flows {
-				slog.Info("Removing flow.", "id", flow.ID)
-				err := client.DeleteFlow(flow.ID)
-				errs = append(errs, err)
-			}
-			return errors.Join(errs...)
+			slog.Info("Uninstalled project.", "name", projectName)
+			return nil
 		},
 	}
 	cmd.Flags().StringVar(&command.ModuleVersion, "module-version", "", "Software version to remove")

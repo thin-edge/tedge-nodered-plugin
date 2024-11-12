@@ -1,16 +1,38 @@
 package nodered
 
 import (
-	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
-	"log/slog"
 	"net/http"
-	"strings"
 
 	"github.com/tidwall/gjson"
+
+	"github.com/go-resty/resty/v2"
 )
+
+type BadRequestError struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+func (e *BadRequestError) Error() string {
+	return fmt.Sprintf("%s. %s", e.Code, e.Message)
+}
+
+var ErrNotFound = errors.New("resource not found")
+
+type ServerError struct {
+	Err error
+}
+
+func (e *ServerError) Error() string {
+	return e.Err.Error()
+}
+
+func (e *ServerError) Unwrap() error {
+	return e.Err
+}
 
 type FlowResponseV2 struct {
 	Flows       any    `json:"flows"`
@@ -56,7 +78,7 @@ func (f Flow) GetVersion() string {
 }
 
 type Client struct {
-	api     *http.Client
+	api     *resty.Client
 	BaseURL string
 }
 
@@ -66,46 +88,62 @@ func IsTab(v string) bool {
 
 func NewClient(baseURL string) *Client {
 	c := &Client{
-		api:     http.DefaultClient,
-		BaseURL: baseURL,
+		api: resty.NewWithClient(http.DefaultClient),
 	}
+	c.api.Debug = false
+	c.api.EnableTrace()
+	c.api.OnAfterResponse(func(c *resty.Client, r *resty.Response) error {
+		if r.StatusCode() > 399 || r.StatusCode() < 200 {
+			var err error
+			switch r.StatusCode() {
+			case http.StatusNotFound:
+				err = ErrNotFound
+			case http.StatusBadRequest:
+				badRequestErr := &BadRequestError{}
+				if marshalErr := json.Unmarshal(r.Body(), &badRequestErr); marshalErr == nil {
+					err = badRequestErr
+				} else {
+					err = fmt.Errorf("invalid request. %w", err)
+				}
+
+			default:
+				err = fmt.Errorf("api error")
+			}
+			return &ServerError{
+				Err: err,
+			}
+		}
+		return nil
+	})
+	c.api.
+		SetBaseURL(baseURL).
+		SetHeader("Node-RED-API-Version", "v2").
+		SetHeader("Content-Type", "application/json")
+
 	return c
 }
 
 func (c *Client) SetBaseURL(u string) *Client {
-	c.BaseURL = u
+	c.api.SetBaseURL(u)
 	return c
 }
 
-func (c *Client) url(subpath ...string) string {
-	return strings.Join(append([]string{c.BaseURL}, subpath...), "/")
+func (c *Client) SetDebug(v bool) *Client {
+	c.api.Debug = v
+	return c
 }
 
-func (c *Client) prepare(method string, subpath string, body io.Reader) (*http.Request, error) {
-	req, err := http.NewRequest(method, c.url(subpath), body)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Node-RED-API-Version", "v2")
-	return req, nil
-}
+//
+// Flows
+//
 
 func (c *Client) GetFlows() ([]Flow, error) {
-	req, err := c.prepare(http.MethodGet, "flows", nil)
-	if err != nil {
-		return nil, err
-	}
-	resp, err := c.api.Do(req)
+	resp, err := c.api.R().Get("flows")
 	if err != nil {
 		return nil, err
 	}
 
-	b, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	node := gjson.ParseBytes(b)
+	node := gjson.ParseBytes(resp.Body())
 	flows := make([]Flow, 0)
 	rev := node.Get("rev").String()
 	node.Get("flows").ForEach(func(key, value gjson.Result) bool {
@@ -131,11 +169,6 @@ func (c *Client) SetFlow(rev string, flowIn any) (*FlowResponseV2, error) {
 		Rev:   rev,
 	}
 
-	body, err := json.Marshal(requestBody)
-	if err != nil {
-		return nil, err
-	}
-
 	// Replace variables
 	// TODO: Does this make sense?
 	// host.containers.internal
@@ -144,40 +177,147 @@ func (c *Client) SetFlow(rev string, flowIn any) (*FlowResponseV2, error) {
 	// body = bytes.ReplaceAll(body, []byte("${TEDGE_MQTT_HOST}"), []byte("host.docker.internal"))
 	// body = bytes.ReplaceAll(body, []byte("${TEDGE_MQTT_PORT}"), []byte("1883"))
 
-	req, err := c.prepare(http.MethodPost, "flows", bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
-
-	// full, nodes, flows or reload
-	req.Header.Add("Node-RED-Deployment-Type", "full")
-	req.Header.Add("Content-Type", "application/json")
-
-	slog.Info("Sending request.", "body", body)
-	slog.Info("Sending request.", "req", req)
-
-	resp, err := c.api.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	slog.Info("response.", "statusCode", resp.StatusCode)
-
-	b, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
 	data := &FlowResponseV2{}
-	err = json.Unmarshal(b, &data)
+	_, err := c.api.R().
+		SetHeader("Node-RED-Deployment-Type", "full").
+		SetResult(&data).
+		SetBody(requestBody).
+		Post("flows")
+
 	return data, err
 }
 
 // Delete an existing flow
 // Docs: https://nodered.org/docs/api/admin/methods/delete/flow/
-func (c *Client) DeleteFlow(flowID string) (*http.Response, error) {
-	req, err := c.prepare(http.MethodDelete, fmt.Sprintf("flow/%s", flowID), nil)
-	if err != nil {
-		return nil, err
+func (c *Client) DeleteFlow(flowID string) error {
+	_, err := c.api.R().Delete("flow/" + flowID)
+	return err
+}
+
+//
+// Projects
+//
+
+type ProjectStatus struct {
+	Files    map[string]any    `json:"files,omitempty"`
+	Commits  map[string]any    `json:"commits,omitempty"`
+	Branches map[string]string `json:"branches,omitempty"`
+}
+
+type Commit struct {
+	Sha     string `json:"sha,omitempty"`
+	Subject string `json:"subject,omitempty"`
+}
+
+type BranchStatus struct {
+	Ahead  int64 `json:"ahead"`
+	Behind int64 `json:"behind"`
+}
+
+type Branch struct {
+	Name    string        `json:"name,omitempty"`
+	Remote  string        `json:"remote,omitempty"`
+	Status  *BranchStatus `json:"status,omitempty"`
+	Commit  *Commit       `json:"commit,omitempty"`
+	Current bool          `json:"current"`
+}
+
+type Branches struct {
+	Branches []Branch `json:"branches,omitempty"`
+}
+
+type ProjectsResponse struct {
+	Projects []string `json:"projects"`
+	Active   string   `json:"active"`
+}
+
+type Repository struct {
+	URL      string `json:"url,omitempty"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+type GitConfig struct {
+	Remotes  map[string]Repository `json:"remotes,omitempty"`
+	Branches map[string]string     `json:"branches,omitempty"`
+}
+
+type Project struct {
+	Name    string `json:"name"`
+	Version string `json:"version,omitempty"`
+
+	Git               *GitConfig `json:"git,omitempty"`
+	CredentialsSecret string     `json:"credentialSecret"`
+}
+
+func (c *Client) ProjectList() (*ProjectsResponse, error) {
+	data := &ProjectsResponse{}
+	_, err := c.api.R().SetResult(data).Get("projects")
+	return data, err
+}
+
+func (c *Client) ProjectGet(name string) (*Project, error) {
+	data := &Project{}
+	_, err := c.api.R().SetResult(data).Get("projects/" + name)
+	return data, err
+}
+
+func (c *Client) ProjectDelete(name string) error {
+	_, err := c.api.R().Delete("projects/" + name)
+	return err
+}
+
+func (c *Client) ProjectClone(name string, url string) (*Project, error) {
+	project := Project{
+		Name: name,
+		Git: &GitConfig{
+			Remotes: map[string]Repository{
+				"origin": {
+					URL: url,
+				},
+			},
+		},
 	}
-	return c.api.Do(req)
+
+	data := &Project{}
+	_, err := c.api.R().
+		SetBody(project).
+		SetResult(data).
+		Post("projects")
+	return data, err
+}
+
+func (c *Client) ProjectPull(name string) (*Project, error) {
+	data := &Project{}
+	_, err := c.api.R().
+		SetBody("{}").
+		SetResult(data).
+		Post("projects/" + name + "/pull")
+	return data, err
+}
+
+func (c *Client) ProjectStatus(name string, clearContext bool) (*ProjectStatus, error) {
+	data := &ProjectStatus{}
+	_, err := c.api.R().
+		SetResult(data).
+		Get("projects/" + name + "/status")
+	return data, err
+}
+
+func (c *Client) ProjectSetActive(name string, clearContext bool) (*Project, error) {
+	data := &Project{}
+	_, err := c.api.R().
+		SetBody(map[string]any{
+			"active":       true,
+			"clearContext": clearContext,
+		}).
+		SetResult(data).
+		Put("projects/" + name)
+	return data, err
+}
+
+func (c *Client) ProjectBranches(name string) (*Branches, error) {
+	data := &Branches{}
+	_, err := c.api.R().SetResult(data).Get("projects/" + name + "/branches")
+	return data, err
 }

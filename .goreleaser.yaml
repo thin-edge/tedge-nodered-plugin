@@ -89,14 +89,10 @@ nfpms:
       - src: /usr/bin/tedge-nodered-plugin
         dst: /etc/tedge/sm-plugins/nodered-flows
         type: symlink
-
-      # Legacy nodered-project sm-plugin  
-      - src: ./src/sm-plugin/*
-        dst: /etc/tedge/sm-plugins/
-        file_info:
-          mode: 0755
-          owner: tedge
-          group: tedge
+      
+      - src: /usr/bin/tedge-nodered-plugin
+        dst: /etc/tedge/sm-plugins/nodered-project
+        type: symlink
 
       # Completions
       - src: ./output/completions.bash

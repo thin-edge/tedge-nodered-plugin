@@ -1,11 +1,10 @@
 /*
 Copyright © 2024 thin-edge.io <info@thin-edge.io>
 */
-package nodered_flow
+package nodered_project
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -13,8 +12,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/thin-edge/tedge-nodered-plugin/pkg/cli"
 	"github.com/thin-edge/tedge-nodered-plugin/pkg/nodered"
-	"github.com/tidwall/gjson"
-	"github.com/tidwall/sjson"
 )
 
 type InstallCommand struct {
@@ -25,6 +22,10 @@ type InstallCommand struct {
 	File           string
 }
 
+type ProjectDescription struct {
+	Repository string `json:"repo,omitempty"`
+}
+
 // installCmd represents the install command
 func NewInstallCommand(ctx cli.Cli) *cobra.Command {
 	command := &InstallCommand{
@@ -32,7 +33,7 @@ func NewInstallCommand(ctx cli.Cli) *cobra.Command {
 	}
 	cmd := &cobra.Command{
 		Use:   "install <MODULE_NAME>",
-		Short: "Install a flow",
+		Short: "Install a project",
 		Args:  cobra.ExactArgs(1),
 		RunE:  command.RunE,
 	}
@@ -45,9 +46,6 @@ func NewInstallCommand(ctx cli.Cli) *cobra.Command {
 
 func (c *InstallCommand) RunE(cmd *cobra.Command, args []string) error {
 	slog.Debug("Executing", "cmd", cmd.CalledAs(), "args", args)
-
-	moduleName := args[0]
-
 	client := nodered.NewClient(GetAPI())
 
 	file, err := os.Open(c.File)
@@ -56,48 +54,49 @@ func (c *InstallCommand) RunE(cmd *cobra.Command, args []string) error {
 	}
 	defer file.Close()
 
-	var flowsIn any
 	b, err := io.ReadAll(file)
 	if err != nil {
 		return err
 	}
 
-	// Edit the flow configuration and add the flow name and version to it
-	node := gjson.ParseBytes(b)
-	flowIndexes := make([]int64, 0)
-	if node.IsArray() {
-		node.ForEach(func(key, value gjson.Result) bool {
-			if value.Get("type").String() == "tab" {
-				flowIndexes = append(flowIndexes, key.Int())
-			}
-			return true
-		})
-	}
-
-	var ob []byte
-	for _, i := range flowIndexes {
-		ob, err = sjson.SetBytes(b, fmt.Sprintf("%d.env.-1", i), nodered.FlowEnv{Name: "MODULE_NAME", Value: moduleName, Type: "str"})
-		if err != nil {
-			return err
-		}
-		b = ob
-		ob, err = sjson.SetBytes(b, fmt.Sprintf("%d.env.-1", i), nodered.FlowEnv{Name: "MODULE_VERSION", Value: c.ModuleVersion, Type: "str"})
-		if err != nil {
-			return err
-		}
-		b = ob
-	}
-
-	err = json.Unmarshal(ob, &flowsIn)
+	project := &ProjectDescription{}
+	err = json.Unmarshal(b, &project)
 	if err != nil {
 		return err
 	}
 
-	resp, err := client.SetFlow("", flowsIn)
+	projects, err := client.ProjectList()
 	if err != nil {
 		return err
 	}
+	projectName := args[0]
+	exists := false
+	for _, project := range projects.Projects {
+		if project == projectName {
+			exists = true
+			break
+		}
+	}
 
-	slog.Info("New revision.", "rev", resp.Rev)
+	if exists {
+		slog.Info("Updating existing project.", "name", projectName)
+		if _, err := client.ProjectSetActive(projectName, true); err != nil {
+			return err
+		}
+		if _, err := client.ProjectPull(projectName); err != nil {
+			return err
+		}
+	}
+
+	slog.Info("Cloning new project.", "name", projectName)
+	if _, err := client.ProjectClone(projectName, project.Repository); err != nil {
+		return err
+	}
+	slog.Info("Activating project.", "name", projectName)
+	if _, err := client.ProjectSetActive(projectName, true); err != nil {
+		return err
+	}
+
+	slog.Info("Installed module.", "name", projectName, "url", project.Repository)
 	return nil
 }

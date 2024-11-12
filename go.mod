@@ -3,6 +3,7 @@ module github.com/thin-edge/tedge-nodered-plugin
 go 1.23.2
 
 require (
+	github.com/go-resty/resty/v2 v2.16.0
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.19.0
 	github.com/tidwall/gjson v1.18.0
@@ -29,6 +30,7 @@ require (
 	github.com/tidwall/pretty v1.2.1 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20230905200255-921286631fa9 // indirect
+	golang.org/x/net v0.27.0 // indirect
 	golang.org/x/sys v0.26.0 // indirect
 	golang.org/x/text v0.19.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
