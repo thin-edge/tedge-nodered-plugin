@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/tidwall/gjson"
 
@@ -90,6 +92,25 @@ func NewClient(baseURL string) *Client {
 	c := &Client{
 		api: resty.NewWithClient(http.DefaultClient),
 	}
+
+	// Configure retries for more resilient behaviour
+	c.api.SetRetryCount(3).
+		SetRetryWaitTime(10 * time.Second).
+		SetRetryMaxWaitTime(60 * time.Second).
+		AddRetryCondition(
+			func(r *resty.Response, err error) bool {
+				if err != nil {
+					slog.Info("Retry on error.", "err", err)
+					return true
+				}
+				if (r.StatusCode() == http.StatusBadGateway) || (r.StatusCode() == http.StatusGatewayTimeout) {
+					slog.Info("Retry on HTTP error.", "status", r.Status())
+					return true
+				}
+				return false
+			},
+		)
+
 	c.api.Debug = false
 	c.api.EnableTrace()
 	c.api.OnAfterResponse(func(c *resty.Client, r *resty.Response) error {
