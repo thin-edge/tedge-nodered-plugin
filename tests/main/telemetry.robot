@@ -3,6 +3,7 @@ Resource    ../resources/common.robot
 
 Suite Setup    Custom Setup
 Test Teardown    Collect Logs
+Suite Teardown    Collect Logs
 
 *** Test Cases ***
 
