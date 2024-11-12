@@ -158,7 +158,7 @@ tar cvzf "$ARCHIVE" .
 2. Create a software version item in Cumulocity IoT
 
     ```sh
-    c8y software versions create --software nodered-demo --version "latest" --file ./tests/testdata/nodered-demo.cfg
+    c8y software versions create --software nodered-demo --version "latest" --file ./tests/testdata/nodered-demo.json
     ```
 
 ## Future ideas
