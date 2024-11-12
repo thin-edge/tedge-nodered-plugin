@@ -10,6 +10,8 @@ on:
   pull_request_target:
     branches: [ main ]
   merge_group:
+  push:
+    branches: [ next ]
 jobs:
   approve:
     name: Approve
@@ -36,7 +38,8 @@ jobs:
       fail-fast: false
       matrix:
         job:
-          - { image: debian-systemd-native }
+          # - { image: debian-systemd-native }
+          - { image: debian-systemd-container }
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -60,6 +63,7 @@ jobs:
       - uses: taiki-e/install-action@just
       - name: Install dependencies
         run: |
+          just build-local
           just venv
           just build-test
 
