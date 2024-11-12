@@ -5,7 +5,7 @@ Suite Setup    Suite Setup
 Test Teardown    Collect Logs
 
 *** Variables ***
-${PROJECT_TARBALL}    ${CURDIR}/../testdata/nodered-demo__main@a6293b6.tar.gz
+${PROJECT_TARBALL}    ${CURDIR}/../testdata/nodered-demo__next@cc38b0a.tar.gz
 
 *** Test Cases ***
 
@@ -81,6 +81,13 @@ Suite Setup
     Set Suite Variable    $DEVICE_SN
     Cumulocity.External Identity Should Exist    ${DEVICE_SN}
     
+    # Install
+    # TODO: Create conditional installation
+    ${binary_url}=    Cumulocity.Create Inventory Binary    nodered    application/x-yaml    file=${CURDIR}/../testdata/docker-compose.nodered.yaml
+    ${operation}=    Cumulocity.Install Software
+    ...    {"name":"nodered", "version":"1.0.0", "softwareType":"container-group", "url":"${binary_url}"}
+    Operation Should Be SUCCESSFUL    ${operation}
+
 Remove nodered project
     [Arguments]    ${name}
     ${operation}=    Cumulocity.Uninstall Software    {"name": "${name}", "version": "latest", "softwareType": "nodered"}

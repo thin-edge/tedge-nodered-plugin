@@ -74,17 +74,37 @@ if [ -z "$NODERED_DIR" ]; then
     fi
 fi
 
-# Fail if .node-red folder could not be found
-if [ -z "$NODERED_DIR" ]; then
-    log "Could not detect Node-RED directory. Please set the NODERED_DIR variable in $SETTINGS_FILE and try again"
-    exit "$EXIT_USAGE"
-fi
-if [ ! -d "$NODERED_DIR" ]; then
-    log "Node-RED directory (NODERED_DIR) does not exist. path=$NODERED_DIR":
-    exit "$EXIT_USAGE"
-fi
+detect_api_endpoint() {
+    # Try existing setting
+    if curl -f -XGET "$NODERED_API/settings" >/dev/null 2>&1; then
+        return 0
+    fi
 
-log "Using node-red settings: path=$NODERED_DIR, user=$NODERED_USER"
+    # Try container setting
+    # User must have set the container to allow access to the host's localhost services
+    if curl -f -XGET "http://host.docker.internal:1880/settings" >/dev/null 2>&1; then
+        NODERED_API="http://host.docker.internal:1880"
+        log "Detected nodered container, using new endpoint. NODERED_API=$NODERED_API"
+        return 0
+    fi
+    return 1
+}
+
+# Auto detect the endpoint
+detect_api_endpoint
+
+# These don't exist when running nodered in a container, only the api exists
+# Fail if .node-red folder could not be found
+#if [ -z "$NODERED_DIR" ]; then
+#    log "Could not detect Node-RED directory. Please set the NODERED_DIR variable in $SETTINGS_FILE and try again"
+#    exit "$EXIT_USAGE"
+#fi
+#if [ ! -d "$NODERED_DIR" ]; then
+#    log "Node-RED directory (NODERED_DIR) does not exist. path=$NODERED_DIR":
+#    exit "$EXIT_USAGE"
+#fi
+
+log "Using node-red settings: api=$NODERED_API path=$NODERED_DIR, user=$NODERED_USER"
 
 # Set derived settings after loading any settings file
 ACTIVE_PROJECT_FILE="$NODERED_DIR/.active_project"
@@ -168,7 +188,11 @@ install_project_from_tarball() {
     SUDO=""
     if is_root; then
         # Extract using the user node-red user to prevent file reading problems
-        SUDO="sudo -u $NODERED_USER"
+        if [ -n "$NODERED_USER" ]; then
+            SUDO="sudo -u $NODERED_USER"
+        else
+            SUDO="sudo"
+        fi
     fi
 
     if [ -d "$module_dir" ]; then
@@ -195,32 +219,18 @@ install_project_from_git_repo() {
     name="$1"
     url="$2"
     version="$3"
-    module_dir="$4"
 
     if ! project_exists "$name"; then
-        log "Registering new project with nodered: name=$name, url=$url, path=$module_dir"
+        log "Registering new project with nodered: name=$name, url=$url"
         create_project "$name" "$url"
     else
-        log "Project is already registered with nodered: name=$name, url=$url, path=$module_dir"
+        log "Project is already registered with nodered: name=$name, url=$url"
 
         # Project needs to be active before it can be pulled!
         if is_project_active "$name"; then
             nodered_api POST "/projects/$name/pull" -d '{}' -f
         fi
     fi
-
-    # Check if this is necessary if the api is abstracting the git access now
-    if command -v git >/dev/null 2>&1; then
-        git config --global --add safe.directory "$module_dir" || log "Not a git repository. path=$module_dir"
-    fi
-
-    # Fix permissions
-    SUDO=""
-    if is_root; then
-        # Extract using the user node-red user to prevent file reading problems
-        SUDO="sudo -u $NODERED_USER"
-    fi
-    chown -R "$NODERED_USER:$NODERED_USER" "$module_dir"
 }
 
 nodered_api() {
@@ -283,15 +293,15 @@ done
 
 case "$COMMAND" in
     list)
-        if ! command -v node-red-pi >/dev/null 2>&1; then
-            log "node-red-pi is not installed. Skipping plugin"
-            exit 0
-        fi
+        # if ! command -v node-red-pi >/dev/null 2>&1; then
+        #     log "node-red-pi is not installed. Skipping plugin"
+        #     exit 0
+        # fi
 
-        if [ ! -d "$NODERED_DIR" ]; then
-            echo "nodered directory does not exist. path=$NODERED_DIR"
-            exit 0
-        fi
+        # if [ ! -d "$NODERED_DIR" ]; then
+        #     echo "nodered directory does not exist. path=$NODERED_DIR"
+        #     exit 0
+        # fi
         # -------------------------------------------------------------------
         # Mode: Projects
         # -------------------------------------------------------------------
@@ -352,6 +362,7 @@ EOF
 
         # Detect the type of package
         if tar -tzf "$FILE" >/dev/null 2>&1; then
+            # TODO: this isn't supported when doing only using the api
             log "Detected package type. type=tarball"
             install_project_from_tarball "$FILE" "$MODULE_VERSION" "$MODULE_DIR"
         else
@@ -359,7 +370,7 @@ EOF
 
             if [ -n "$PROJECT_URL" ]; then
                 log "Detected package type. type=url"
-                install_project_from_git_repo "$MODULE_NAME" "$PROJECT_URL" "$MODULE_VERSION" "$MODULE_DIR"
+                install_project_from_git_repo "$MODULE_NAME" "$PROJECT_URL" "$MODULE_VERSION"
             else
                 log "Invalid package type. file=$FILE"
                 exit "$EXIT_FAILURE"
@@ -434,27 +445,34 @@ EOF
 
     prepare)
         # Enable Node-RED projects feature (required by this plugin)
-        if ! grep -F "NODE_RED_ENABLE_PROJECTS=" "$NODERED_DIR/environment" -q >/dev/null 2>&1; then
-            SUDO=""
-            if is_root; then
-                # Extract using the user node-red user to prevent file reading problems
-                SUDO="sudo -u $NODERED_USER"
+        if ! check_project_mode; then
+            # TODO: add check for container or native node-red installation
+            if ! grep -F "NODE_RED_ENABLE_PROJECTS=" "$NODERED_DIR/environment" -q >/dev/null 2>&1; then
+                SUDO=""
+                if is_root; then
+                    if [ -n "$NODERED_USER" ]; then
+                        # Extract using the user node-red user to prevent file reading problems
+                        SUDO="sudo -u $NODERED_USER"
+                    else
+                        SUDO="sudo"
+                    fi
+                fi
+                log "Enabling Node-RED projects. Adding NODE_RED_ENABLE_PROJECTS=true to $NODERED_DIR/environment"
+                echo "NODE_RED_ENABLE_PROJECTS=true" | $SUDO tee "$NODERED_DIR/environment" >/dev/null
+
+                # Restart is required after activating project feature
+                restart_node_red
             fi
-            log "Enabling Node-RED projects. Adding NODE_RED_ENABLE_PROJECTS=true to $NODERED_DIR/environment"
-            echo "NODE_RED_ENABLE_PROJECTS=true" | $SUDO tee "$NODERED_DIR/environment" >/dev/null
 
-            # Restart is required after activating project feature
-            restart_node_red
+            # Check if the api is reachable as this is an indication if it is running or not
+            if ! nodered_api GET /projects 2>/dev/null; then
+                log "Starting node-red as the endpoint was not reachable"
+                restart_node_red
+            fi
+
+            # Verify that the project feature is enabled
+            check_project_mode
         fi
-
-        # Check if the api is reachable as this is an indication if it is running or not
-        if ! nodered_api GET /projects 2>/dev/null; then
-            log "Starting node-red as the endpoint was not reachable"
-            restart_node_red
-        fi
-
-        # Verify that the project feature is enabled
-        check_project_mode
         ;;
 
     finalize)

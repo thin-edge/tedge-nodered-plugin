@@ -1,0 +1,174 @@
+[
+    {
+        "id": "2c1c052d3644e00b",
+        "type": "tab",
+        "label": "Temperature Flow",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "f6cf14e7cf58c0b8",
+        "type": "mqtt-broker",
+        "name": "",
+        "broker": "${TEDGE_MQTT_HOST}",
+        "port": "${TEDGE_MQTT_PORT}",
+        "clientid": "nodered",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": false,
+        "autoUnsubscribe": true,
+        "birthTopic": "te/device/main/service/nodered-temperature-flow",
+        "birthQos": "1",
+        "birthRetain": "true",
+        "birthPayload": "{\"@type\":\"service\",\"@parent\":\"device/main//\",\"type\":\"nodered\"}",
+        "birthMsg": {},
+        "closeTopic": "te/device/main/service/nodered-temperature-flow/status/health",
+        "closeQos": "1",
+        "closeRetain": "true",
+        "closePayload": "{\"status\":\"down\"}",
+        "closeMsg": {},
+        "willTopic": "te/device/main/service/nodered-temperature-flow/status/health",
+        "willQos": "1",
+        "willRetain": "true",
+        "willPayload": "{\"status\":\"down\"}",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "2ce78006931304ac",
+        "type": "mqtt in",
+        "z": "2c1c052d3644e00b",
+        "name": "tedge temperature measurements",
+        "topic": "te/device/main///m/+",
+        "qos": "0",
+        "datatype": "json",
+        "broker": "f6cf14e7cf58c0b8",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 240,
+        "y": 300,
+        "wires": [
+            [
+                "69209fa836d7c4a6"
+            ]
+        ]
+    },
+    {
+        "id": "e80977153b50bf1d",
+        "type": "mqtt out",
+        "z": "2c1c052d3644e00b",
+        "name": "Publish event",
+        "topic": "te/device/main///e/temperatureChange",
+        "qos": "2",
+        "retain": "false",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "f6cf14e7cf58c0b8",
+        "x": 1040,
+        "y": 300,
+        "wires": []
+    },
+    {
+        "id": "69209fa836d7c4a6",
+        "type": "rbe",
+        "z": "2c1c052d3644e00b",
+        "name": "significant temperature change",
+        "func": "deadbandEq",
+        "gap": "10",
+        "start": "",
+        "inout": "in",
+        "septopics": false,
+        "property": "payload.temperature",
+        "topi": "topic",
+        "x": 570,
+        "y": 300,
+        "wires": [
+            [
+                "080bbdc7b23bc34d"
+            ]
+        ]
+    },
+    {
+        "id": "080bbdc7b23bc34d",
+        "type": "template",
+        "z": "2c1c052d3644e00b",
+        "name": "Create Event",
+        "field": "payload",
+        "fieldType": "msg",
+        "format": "handlebars",
+        "syntax": "mustache",
+        "template": "{\"text\": \"Temperature changed by ≥10°C. new_value={{payload.temperature}}°C\"}",
+        "output": "json",
+        "x": 830,
+        "y": 300,
+        "wires": [
+            [
+                "e80977153b50bf1d"
+            ]
+        ]
+    },
+    {
+        "id": "236503f8d24cf607",
+        "type": "mqtt out",
+        "z": "2c1c052d3644e00b",
+        "name": "Publish health",
+        "topic": "te/device/main/service/nodered-temperature-flow/status/health",
+        "qos": "2",
+        "retain": "true",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "f6cf14e7cf58c0b8",
+        "x": 400,
+        "y": 180,
+        "wires": []
+    },
+    {
+        "id": "d40786609e8197ef",
+        "type": "inject",
+        "z": "2c1c052d3644e00b",
+        "name": "On Startup",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": true,
+        "onceDelay": "2",
+        "topic": "te/device/main/service/nodered-temperature-flow/status/health",
+        "payload": "{\"status\":\"up\"}",
+        "payloadType": "json",
+        "x": 170,
+        "y": 180,
+        "wires": [
+            [
+                "236503f8d24cf607"
+            ]
+        ]
+    },
+    {
+        "id": "asdfasdfasdf",
+        "type": "tab",
+        "label": "Temperature again",
+        "disabled": false,
+        "info": "",
+        "env": []
+    }
+]

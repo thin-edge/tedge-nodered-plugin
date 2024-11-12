@@ -1,12 +1,5 @@
 FROM ghcr.io/thin-edge/tedge-demo-main-systemd:latest
-ARG TEST_USER=iotadmin
-
-# Install node-red
-RUN curl -sL https://raw.githubusercontent.com/node-red/linux-installers/master/deb/update-nodejs-and-nodered > /tmp/install-nodered.sh \
-    && chmod +x /tmp/install-nodered.sh \
-    && sudo -u ${TEST_USER} /tmp/install-nodered.sh --confirm-install --nodered-user=${TEST_USER} || true \
-    && systemctl enable nodered.service \
-    && rm -f /tmp/install-nodered.sh
+ARG TARGETPLATFORM
 
 # Install additional dependencies
 RUN apt-get update \
