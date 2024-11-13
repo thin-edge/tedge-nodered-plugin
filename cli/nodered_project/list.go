@@ -22,7 +22,7 @@ func NewListCommand(cliContext cli.Cli) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			slog.Debug("Executing", "cmd", cmd.CalledAs(), "args", args)
 
-			client := nodered.NewClient(GetAPI())
+			client := nodered.NewClientWithoutRetries(GetAPI())
 			resp, err := client.ProjectList()
 			if err != nil {
 				// Don't fail the API is not ready yet

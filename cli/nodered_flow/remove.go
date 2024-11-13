@@ -28,7 +28,7 @@ func NewRemoveCommand(ctx cli.Cli) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			slog.Debug("Executing", "cmd", cmd.CalledAs(), "args", args)
 
-			client := nodered.NewClient(GetAPI())
+			client := nodered.NewClientWithRetries(GetAPI())
 
 			flows, err := client.GetFlows()
 			if err != nil {

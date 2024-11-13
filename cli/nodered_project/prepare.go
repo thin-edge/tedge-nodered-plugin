@@ -20,7 +20,7 @@ func NewPrepareCommand(ctx cli.Cli) *cobra.Command {
 			slog.Debug("Executing", "cmd", cmd.CalledAs(), "args", args)
 
 			// Check if the node-red project mode is enabled
-			client := nodered.NewClient(GetAPI())
+			client := nodered.NewClientWithRetries(GetAPI())
 			_, err := client.ProjectList()
 			return err
 		},

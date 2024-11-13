@@ -88,13 +88,21 @@ func IsTab(v string) bool {
 	return v == "tab"
 }
 
-func NewClient(baseURL string) *Client {
+func NewClientWithRetries(baseURL string) *Client {
+	return NewClient(baseURL, 3)
+}
+
+func NewClientWithoutRetries(baseURL string) *Client {
+	return NewClient(baseURL, 0)
+}
+
+func NewClient(baseURL string, maxRetries int) *Client {
 	c := &Client{
 		api: resty.NewWithClient(http.DefaultClient),
 	}
 
 	// Configure retries for more resilient behaviour
-	c.api.SetRetryCount(3).
+	c.api.SetRetryCount(maxRetries).
 		SetRetryWaitTime(10 * time.Second).
 		SetRetryMaxWaitTime(60 * time.Second).
 		AddRetryCondition(

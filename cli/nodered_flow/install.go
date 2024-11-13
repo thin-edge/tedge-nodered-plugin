@@ -48,7 +48,7 @@ func (c *InstallCommand) RunE(cmd *cobra.Command, args []string) error {
 
 	moduleName := args[0]
 
-	client := nodered.NewClient(GetAPI())
+	client := nodered.NewClientWithRetries(GetAPI())
 
 	file, err := os.Open(c.File)
 	if err != nil {

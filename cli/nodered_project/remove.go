@@ -28,7 +28,7 @@ func NewRemoveCommand(ctx cli.Cli) *cobra.Command {
 			slog.Debug("Executing", "cmd", cmd.CalledAs(), "args", args)
 			projectName := args[0]
 
-			client := nodered.NewClient(GetAPI())
+			client := nodered.NewClientWithRetries(GetAPI())
 
 			// Note: This will fail if the current project is active
 			if err := client.ProjectDelete(projectName); err != nil {

@@ -46,7 +46,7 @@ func NewInstallCommand(ctx cli.Cli) *cobra.Command {
 
 func (c *InstallCommand) RunE(cmd *cobra.Command, args []string) error {
 	slog.Debug("Executing", "cmd", cmd.CalledAs(), "args", args)
-	client := nodered.NewClient(GetAPI())
+	client := nodered.NewClientWithRetries(GetAPI())
 
 	file, err := os.Open(c.File)
 	if err != nil {
