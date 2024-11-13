@@ -1,4 +1,4 @@
-FROM ghcr.io/thin-edge/tedge-demo-main-systemd:latest
+FROM ghcr.io/thin-edge/tedge-demo-main-systemd:20241113.1212
 ARG TEST_USER=iotadmin
 
 # Install node-red
