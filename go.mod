@@ -1,6 +1,6 @@
 module github.com/thin-edge/tedge-nodered-plugin
 
-go 1.23.2
+go 1.22
 
 require (
 	github.com/go-resty/resty/v2 v2.16.0
