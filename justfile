@@ -44,9 +44,6 @@ build-test:
 test *args='':
   ./.venv/bin/python3 -m robot.run --outputdir output {{args}} tests
 
-release:
-    ./ci/build.sh
-
 # Download/update vendor packages
 update-vendor:
   go mod vendor
