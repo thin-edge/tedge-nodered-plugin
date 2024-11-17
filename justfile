@@ -46,3 +46,13 @@ test *args='':
 
 release:
     ./ci/build.sh
+
+# Download/update vendor packages
+update-vendor:
+  go mod vendor
+
+# Print yocto licensing string
+print-yocto-licenses:
+  @echo 'LIC_FILES_CHKSUM = " \'
+  @find . -name "LICENSE*" -exec bash -c 'echo -n "    file://src/\${GO_IMPORT}/{};md5=" && md5 -q {}' \; 2>/dev/null | grep -v "/\.venv/" | sed 's|$| \\|g' | sed 's|/\./|/|g'
+  @echo '"'
