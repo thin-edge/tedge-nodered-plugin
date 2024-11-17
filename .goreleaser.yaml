@@ -71,7 +71,7 @@ archives:
 
 nfpms:
   - 
-    package_name: tedge-nodered-plugin
+    package_name: tedge-nodered-plugin-ng
     license: Apache License 2.0
     maintainer: thin-edge.io <thinedge@thin-edge.io>
     homepage: https://github.com/thin-edge/tedge-nodered-plugin
@@ -84,6 +84,14 @@ nfpms:
       - deb
       - rpm
       - apk
+
+    # FIXME: Remove for official release, as the package can be called "tedge-container-plugin" instead of "tedge-container-plugin-ng"
+    replaces:
+      - tedge-nodered-plugin
+    provides:
+      - tedge-nodered-plugin
+    conflicts:
+      - tedge-nodered-plugin
 
     contents:
       - src: /usr/bin/tedge-nodered-plugin
