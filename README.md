@@ -45,7 +45,7 @@ The following linux package formats are provided on the releases page and also i
 
 * The following software management plugins which is called when installing and removing `nodered` projects via Cumulocity IoT
     * `nodered-project` - Deploy a project using the node-red project structure (e.g. git repository containing a flow)
-    * `nodered-flow` - Deploy a node-red flow (e.g. `flows.json`)
+    * `nodered-flows` - Deploy a node-red flow (e.g. `flows.json`)
 
 ## Plugin Dependencies
 
