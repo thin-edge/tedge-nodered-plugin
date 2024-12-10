@@ -11,6 +11,9 @@ services:
       - node_red_data:/data
     networks:
       - tedge
+    # Required for docker
+    # extra_hosts:
+    #   - "host.containers.internal:host-gateway"
 
 volumes:
   node_red_data:
