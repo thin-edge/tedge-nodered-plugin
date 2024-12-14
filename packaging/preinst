@@ -1,0 +1,8 @@
+#!/bin/sh
+set -e
+
+if [ -f /etc/tedge/sm-plugins/nodered ]; then
+    echo "Removing legacy nodered plugin" >&2
+    # regular file exists (is not a symlink)
+    rm /etc/tedge/sm-plugins/nodered
+fi
