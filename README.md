@@ -1,4 +1,4 @@
-# tedge-nodered-plugin-ng
+# tedge-nodered-plugin
 
 ## Pre-requisites
 
@@ -37,9 +37,9 @@ The following linux package formats are provided on the releases page and also i
 
 |Operating System|Repository link|
 |--|--|
-|Debian/Raspian (deb)|[![Latest version of 'tedge-nodered-plugin-ng' @ Cloudsmith](https://api-prd.cloudsmith.io/v1/badges/version/thinedge/community/deb/tedge-nodered-plugin-ng/latest/a=arm64;d=any-distro%252Fany-version;t=binary/?render=true&show_latest=true)](https://cloudsmith.io/~thinedge/repos/community/packages/detail/deb/tedge-nodered-plugin-ng/latest/a=arm64;d=any-distro%252Fany-version;t=binary/)|
-|Alpine Linux (apk)|[![Latest version of 'tedge-nodered-plugin-ng' @ Cloudsmith](https://api-prd.cloudsmith.io/v1/badges/version/thinedge/community/alpine/tedge-nodered-plugin-ng/latest/a=aarch64;d=alpine%252Fany-version/?render=true&show_latest=true)](https://cloudsmith.io/~thinedge/repos/community/packages/detail/alpine/tedge-nodered-plugin-ng/latest/a=aarch64;d=alpine%252Fany-version/)|
-|RHEL/CentOS/Fedora (rpm)|[![Latest version of 'tedge-nodered-plugin-ng' @ Cloudsmith](https://api-prd.cloudsmith.io/v1/badges/version/thinedge/community/rpm/tedge-nodered-plugin-ng/latest/a=aarch64;d=any-distro%252Fany-version;t=binary/?render=true&show_latest=true)](https://cloudsmith.io/~thinedge/repos/community/packages/detail/rpm/tedge-nodered-plugin-ng/latest/a=aarch64;d=any-distro%252Fany-version;t=binary/)|
+|Debian/Raspbian (deb)|[![Latest version of 'tedge-nodered-plugin' @ Cloudsmith](https://api-prd.cloudsmith.io/v1/badges/version/thinedge/community/deb/tedge-nodered-plugin/latest/a=arm64;d=any-distro%252Fany-version;t=binary/?render=true&show_latest=true)](https://cloudsmith.io/~thinedge/repos/community/packages/detail/deb/tedge-nodered-plugin/latest/a=arm64;d=any-distro%252Fany-version;t=binary/)|
+|Alpine Linux (apk)|[![Latest version of 'tedge-nodered-plugin' @ Cloudsmith](https://api-prd.cloudsmith.io/v1/badges/version/thinedge/community/alpine/tedge-nodered-plugin/latest/a=aarch64;d=alpine%252Fany-version/?render=true&show_latest=true)](https://cloudsmith.io/~thinedge/repos/community/packages/detail/alpine/tedge-nodered-plugin/latest/a=aarch64;d=alpine%252Fany-version/)|
+|RHEL/CentOS/Fedora (rpm)|[![Latest version of 'tedge-nodered-plugin' @ Cloudsmith](https://api-prd.cloudsmith.io/v1/badges/version/thinedge/community/rpm/tedge-nodered-plugin/latest/a=aarch64;d=any-distro%252Fany-version;t=binary/?render=true&show_latest=true)](https://cloudsmith.io/~thinedge/repos/community/packages/detail/rpm/tedge-nodered-plugin/latest/a=aarch64;d=any-distro%252Fany-version;t=binary/)|
 
 ### What will be deployed to the device?
 
