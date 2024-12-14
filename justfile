@@ -16,6 +16,21 @@ init-dotenv:
   @echo "C8Y_USER=$C8Y_USER" >> .env
   @echo "C8Y_PASSWORD=$C8Y_PASSWORD" >> .env
 
+
+# Release all artifacts
+build *ARGS='':
+    mkdir -p output
+    go run main.go completion bash > output/completions.bash
+    go run main.go completion zsh > output/completions.zsh
+    go run main.go completion fish > output/completions.fish
+
+    docker context use default
+    goreleaser release --clean --auto-snapshot {{ARGS}}
+
+# Build a release locally (for testing the release artifacts)
+build-local:
+    just -f "{{justfile()}}" build --snapshot
+
 # Install python virtual environment
 venv:
   [ -d .venv ] || python3 -m venv .venv
@@ -29,5 +44,12 @@ build-test:
 test *args='':
   ./.venv/bin/python3 -m robot.run --outputdir output {{args}} tests
 
-release:
-    ./ci/build.sh
+# Download/update vendor packages
+update-vendor:
+  go mod vendor
+
+# Print yocto licensing string
+print-yocto-licenses:
+  @echo 'LIC_FILES_CHKSUM = " \'
+  @find . -name "LICENSE*" -exec bash -c 'echo -n "    file://src/\${GO_IMPORT}/{};md5=" && md5 -q {}' \; 2>/dev/null | grep -v "/\.venv/" | sed 's|$| \\|g' | sed 's|/\./|/|g'
+  @echo '"'

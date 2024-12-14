@@ -1,0 +1,23 @@
+services:
+  nodered:
+    image: docker.io/nodered/node-red:4.0.3-22-minimal
+    environment:
+      - NODE_RED_ENABLE_PROJECTS=false
+      - TEDGE_MQTT_HOST=host.containers.internal
+      - TEDGE_MQTT_PORT=1883
+    ports:
+      - 1880:1880
+    volumes:
+      - node_red_data:/data
+    networks:
+      - tedge
+    # Required for docker
+    # extra_hosts:
+    #   - "host.containers.internal:host-gateway"
+
+volumes:
+  node_red_data:
+
+networks:
+  tedge:
+    external: true

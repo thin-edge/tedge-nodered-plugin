@@ -6,6 +6,7 @@
 
 # build
 dist/
+output/
 *tar.gz
 !tests/testdata/*.tar.gz
 

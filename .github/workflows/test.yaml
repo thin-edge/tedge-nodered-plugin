@@ -8,7 +8,7 @@ on:
   # When in doubt, do not approve the test run.
   # Reference: https://dev.to/petrsvihlik/using-environment-protection-rules-to-secure-secrets-when-building-external-forks-with-pullrequesttarget-hci
   pull_request_target:
-    branches: [ main ]
+    branches: [ main, next ]
   merge_group:
 jobs:
   approve:
@@ -36,7 +36,8 @@ jobs:
       fail-fast: false
       matrix:
         job:
-          - { image: debian-systemd-native }
+          # - { image: debian-systemd-native }
+          - { image: debian-systemd-container }
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -58,6 +59,24 @@ jobs:
             tests/requirements.txt
 
       - uses: taiki-e/install-action@just
+
+      #
+      # Build
+      #
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: false
+      - name: Install dependencies
+        run: |
+          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
+          go install github.com/goreleaser/goreleaser/v2@latest
+      - name: Build package (for testing)
+        run: just build-local
+
+      #
+      # Test
+      #
       - name: Install dependencies
         run: |
           just venv

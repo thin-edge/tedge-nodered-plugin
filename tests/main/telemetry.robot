@@ -3,6 +3,7 @@ Resource    ../resources/common.robot
 
 Suite Setup    Custom Setup
 Test Teardown    Collect Logs
+Suite Teardown    Collect Logs
 
 *** Test Cases ***
 
@@ -28,8 +29,14 @@ Custom Setup
     Set Suite Variable    $DEVICE_SN
     Cumulocity.External Identity Should Exist    ${DEVICE_SN}
 
-    ${binary_url}=    Cumulocity.Create Inventory Binary    nodered-demo    nodered-project    file=${CURDIR}/../testdata/nodered-demo.cfg
+    # Install
+    # TODO: Create conditional installation
+    ${binary_url}=    Cumulocity.Create Inventory Binary    nodered    application/x-yaml    file=${CURDIR}/../testdata/docker-compose.nodered-project.yaml
     ${operation}=    Cumulocity.Install Software
-    ...    {"name":"nodered-demo", "version":"latest", "softwareType":"nodered", "url":"${binary_url}"}
-    ...    {"name":"active-project", "version":"nodered-demo", "softwareType":"nodered"}
+    ...    {"name":"nodered", "version":"1.0.0", "softwareType":"container-group", "url":"${binary_url}"}
     Operation Should Be SUCCESSFUL    ${operation}
+
+    ${binary_url}=    Cumulocity.Create Inventory Binary    nodered-demo    nodered-project    file=${CURDIR}/../testdata/nodered-demo.json
+    ${operation}=    Cumulocity.Install Software
+    ...    {"name":"nodered-demo", "version":"latest", "softwareType":"nodered-project", "url":"${binary_url}"}
+    Operation Should Be SUCCESSFUL    ${operation}    timeout=90
