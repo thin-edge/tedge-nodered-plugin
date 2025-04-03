@@ -4,8 +4,6 @@
 
 Naturally, node-red must be installed in order to use this plugin as the plugin uses the node-red REST api to managed node-red flows. We recommend installing node-red in a container using the [tedge-container-plugin-ng](https://github.com/thin-edge/tedge-container-plugin/tree/next) thin-edge.io software management plugin.
 
-node-red 
-
 node-red supports two different modes, one is the classic mode when flows are just simple json files (e.g. `flows.json`), and the other is the project mode where a flows.json is deployed via a git repository. The former (simple json files) is more flexible and widely used, so it is the recommended way to deploy flows to a device.
 
 To help with the installation the following docker-compose.yaml files can be used to deploy a node-red container via thin-edge.io.
@@ -98,3 +96,18 @@ c8y software create --name my-nodered-project --softwareType nodered-project
 echo '{"repo": "https://github.com/reubenmiller/nodered-demo-next"}' > my-nodered-project.json
 c8y software versions create --software my-nodered-project --version 1.0.0 --file ./my-nodered-project.json
 ```
+
+## Configuration
+
+The tedge-nodered-plugin interacts with node-red via its API endpoint, which is by default `http://127.0.0.1:1880`. If you are using a custom node-red installation and have changed the port, then you can add the following configuration file (which can also be managed by thin-edge.io via the tedge-configuration-plugin), where you can control the node-red API endpoint which is used by tedge-nodered-plugin.
+
+Below shows an example of changing the default API endpoint to `http://127.0.0.1:1881`:
+
+**File: /etc/tedge/plugins/tedge-nodered-plugin.toml**
+
+```toml
+[nodered]
+api = "http://127.0.0.1:1881"
+```
+
+Note: The configuration is read each time the software management plugin is called, so there is no need to restart any services after changing the configuration.

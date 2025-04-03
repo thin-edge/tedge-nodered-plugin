@@ -11,7 +11,7 @@ import (
 	"github.com/thin-edge/tedge-nodered-plugin/pkg/utils"
 )
 
-var LinuxConfigFilePath = "/etc/tedge-container-plugin/config.toml"
+var LinuxConfigFilePath = "/etc/tedge/plugins/tedge-nodered-plugin.toml"
 
 type SilentError error
 
