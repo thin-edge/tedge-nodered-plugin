@@ -38,7 +38,7 @@ venv:
 
 # Build test images and test artifacts
 build-test:
-  docker build -t {{IMAGE}} -f ./test-images/{{IMAGE_SRC}}/Dockerfile .
+  docker buildx build --load -t {{IMAGE}} -f ./test-images/{{IMAGE_SRC}}/Dockerfile .
 
 # Run tests
 test *args='':
