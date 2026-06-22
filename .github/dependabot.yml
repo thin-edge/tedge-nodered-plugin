@@ -2,7 +2,7 @@ version: 2
 updates:
   - package-ecosystem: "gomod"
     directory: "/go.mod"
-    vendor: vendor
+    vendor: true
     schedule:
       interval: "weekly"
       day: "monday"
