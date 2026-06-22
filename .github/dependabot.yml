@@ -1,8 +1,7 @@
 version: 2
 updates:
   - package-ecosystem: "gomod"
-    directory: "/go.mod"
-    vendor: true
+    directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -18,7 +17,7 @@ updates:
       timezone: "Europe/Berlin"
 
   - package-ecosystem: "github-actions"
-    directory: "/.github/workflows" # Location of package manifests
+    directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
