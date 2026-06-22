@@ -1,48 +1,84 @@
 name: Test
 
 on:
-  workflow_dispatch:
-  # Use a manual approval process before PR's are given access to
-  # the secrets which are required to run the integration tests.
-  # The PR code should be manually approved to see if it can be trusted.
-  # When in doubt, do not approve the test run.
-  # Reference: https://dev.to/petrsvihlik/using-environment-protection-rules-to-secure-secrets-when-building-external-forks-with-pullrequesttarget-hci
-  pull_request_target:
+  # In-repo (maintainer) PRs run automatically. Fork PRs lack secret access and
+  # must be triggered by a maintainer commenting /test (see test-slash-command.yaml).
+  pull_request:
     branches: [ main ]
+  repository_dispatch:
+    types: [test-command]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Commit SHA or branch to test"
+        required: false
+        default: ""
   merge_group:
+
+permissions:
+  contents: read
+
 jobs:
-  approve:
-    name: Approve
-    environment:
-      # For security reasons, all pull requests need to be approved first before granting access to secrets
-      # So the environment should be set to have a reviewer/s inspect it before approving it
-      name: ${{ github.event_name == 'pull_request_target' && 'Test Pull Request' || 'Test Auto'  }}
+  build:
+    name: Build
+    # Skip fork PRs on the pull_request event (they have no secret access); the
+    # /test slash command handles them via repository_dispatch instead.
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
-      - name: Wait for approval
-        run: echo "Approved"
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.client_payload.pull_request.head.sha || inputs.ref || github.sha }}
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: false
+
+      - uses: taiki-e/install-action@just
+
+      - name: Install dependencies
+        run: |
+          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
+          go install github.com/goreleaser/goreleaser/v2@latest
+
+      - name: Build package
+        run: just build-local
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-packages
+          path: dist
 
   test:
     name: Test
-    needs: [approve]
+    needs: [build]
+    runs-on: ubuntu-latest
     environment:
       name: Test Auto
-    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
     env:
-      COMPOSE_PROJECT_NAME: ci_${{github.run_id}}_${{github.run_attempt || '1'}}
-      IMAGE: ${{ matrix.job.image }}_ci_${{github.run_id}}_${{github.run_attempt || '1'}}
+      COMPOSE_PROJECT_NAME: ci_${{ github.run_id }}_${{ github.run_attempt || '1' }}
+      IMAGE: ${{ matrix.job.image }}_ci_${{ github.run_id }}_${{ github.run_attempt || '1' }}
       IMAGE_SRC: ${{ matrix.job.image }}
     strategy:
       fail-fast: false
       matrix:
         job:
-          # - { image: debian-systemd-native }
-          - { image: debian-systemd-container }
+          # - { name: "debian-systemd-native", image: "debian-systemd-native", test_options: "" }
+          - { name: "debian-systemd-container", image: "debian-systemd-container", test_options: "" }
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || '' }}
+          ref: ${{ github.event.client_payload.pull_request.head.sha || inputs.ref || github.sha }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -51,12 +87,19 @@ jobs:
         with:
           install: true
 
+      - name: Download packages
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-packages
+          path: dist
+
       - name: create .env file
         run: |
-          touch .env
-          echo 'C8Y_BASEURL="${{ secrets.C8Y_BASEURL }}"' >> .env
-          echo 'C8Y_USER="${{ secrets.C8Y_USER }}"' >> .env
-          echo 'C8Y_PASSWORD="${{ secrets.C8Y_PASSWORD }}"' >> .env
+          {
+            echo 'C8Y_BASEURL="${{ secrets.C8Y_BASEURL }}"'
+            echo 'C8Y_USER="${{ secrets.C8Y_USER }}"'
+            echo 'C8Y_PASSWORD="${{ secrets.C8Y_PASSWORD }}"'
+          } > .env
 
       - uses: actions/setup-python@v5
         with:
@@ -67,41 +110,44 @@ jobs:
 
       - uses: taiki-e/install-action@just
 
-      #
-      # Build
-      #
-      - uses: actions/setup-go@v5
-        with:
-          go-version: stable
-          cache: false
-      - name: Install dependencies
-        run: |
-          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
-          go install github.com/goreleaser/goreleaser/v2@latest
-      - name: Build package (for testing)
-        run: just build-local
-
-      #
-      # Test
-      #
-      - name: Install dependencies
+      - name: Install test dependencies
         run: |
           just venv
           just build-test
 
       - name: Run tests
-        run: just test
+        run: just test ${{ matrix.job.test_options }}
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: reports-${{ matrix.job.image }}
+          name: reports-${{ matrix.job.name }}
           path: output
 
       - name: Send report to commit
-        if: ${{ always() && github.event_name == 'pull_request_target' }}
+        if: ${{ always() && (github.event_name == 'pull_request' || github.event_name == 'repository_dispatch') }}
         uses: "joonvena/robotframework-reporter-action@v2.5"
         with:
           report_path: output
+          show_passed_tests: "false"
           gh_access_token: ${{ secrets.GITHUB_TOKEN }}
+          pull_request_id: ${{ github.event.pull_request.number || github.event.client_payload.pull_request.number }}
+          sha: ${{ github.event.client_payload.pull_request.head.sha || github.sha }}
+
+  tests-pass:
+    name: Tests Pass
+    needs: [build, test]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check all matrix jobs passed
+        run: |
+          if [ "${{ needs.build.result }}" != "success" ]; then
+            echo "Build job failed: ${{ needs.build.result }}"
+            exit 1
+          fi
+          if [ "${{ needs.test.result }}" != "success" ]; then
+            echo "One or more matrix jobs failed: ${{ needs.test.result }}"
+            exit 1
+          fi

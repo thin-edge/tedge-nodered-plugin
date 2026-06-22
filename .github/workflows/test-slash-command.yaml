@@ -1,0 +1,26 @@
+name: Test (Slash Command)
+
+# Listens for /test comments on pull requests.
+# issue_comment always runs in the base-repo context, so this workflow has
+# access to repository secrets even for fork PRs. It only dispatches the test
+# workflow when a maintainer (write permission) comments /test.
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+jobs:
+  slash-command-dispatch:
+    name: Dispatch /test command
+    if: github.event.issue.pull_request != null
+    runs-on: ubuntu-latest
+    steps:
+      - name: Slash Command Dispatch
+        uses: peter-evans/slash-command-dispatch@v5
+        with:
+          token: ${{ secrets.COMMUNITY_ACTIONS_PAT }}
+          commands: test
+          permission: write
+          issue-type: pull-request
