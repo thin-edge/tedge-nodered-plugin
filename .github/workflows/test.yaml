@@ -29,18 +29,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.client_payload.pull_request.head.sha || inputs.ref || github.sha }}
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: stable
           cache: false
 
       - uses: taiki-e/install-action@just
 
-      # goreleaser bundles nfpm, so there is no need to install nfpm separately.
       - name: Install GoReleaser
         uses: goreleaser/goreleaser-action@v7
         with:
@@ -57,7 +56,7 @@ jobs:
           path: dist
 
   test:
-    name: Test
+    name: Test ${{ matrix.job.name }}
     needs: [build]
     runs-on: ubuntu-latest
     environment:
@@ -67,7 +66,6 @@ jobs:
       issues: write
       pull-requests: write
     env:
-      COMPOSE_PROJECT_NAME: ci_${{ github.run_id }}_${{ github.run_attempt || '1' }}
       IMAGE: ${{ matrix.job.image }}_ci_${{ github.run_id }}_${{ github.run_attempt || '1' }}
       IMAGE_SRC: ${{ matrix.job.image }}
     strategy:
@@ -78,19 +76,17 @@ jobs:
           - { name: "debian-systemd-container", image: "debian-systemd-container", test_options: "" }
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.client_payload.pull_request.head.sha || inputs.ref || github.sha }}
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
       - name: Setup Docker buildx
-        uses: docker/setup-buildx-action@v3
-        with:
-          install: true
+        uses: docker/setup-buildx-action@v4
 
       - name: Download packages
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: dist-packages
           path: dist
@@ -103,9 +99,9 @@ jobs:
             echo 'C8Y_PASSWORD="${{ secrets.C8Y_PASSWORD }}"'
           } > .env
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
-          python-version: '3.11'
+          python-version-file: tests/.python-version
           cache: 'pip'
           cache-dependency-path: |
             tests/requirements.txt
@@ -121,7 +117,7 @@ jobs:
         run: just test ${{ matrix.job.test_options }}
 
       - name: Upload test results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: reports-${{ matrix.job.name }}
