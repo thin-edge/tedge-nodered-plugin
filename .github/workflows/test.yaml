@@ -40,10 +40,12 @@ jobs:
 
       - uses: taiki-e/install-action@just
 
-      - name: Install dependencies
-        run: |
-          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
-          go install github.com/goreleaser/goreleaser/v2@latest
+      # goreleaser bundles nfpm, so there is no need to install nfpm separately.
+      - name: Install GoReleaser
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          version: '~> v2'
+          install-only: true
 
       - name: Build package
         run: just build-local
