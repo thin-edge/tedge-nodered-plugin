@@ -84,6 +84,8 @@ nfpms:
       - deb
       - rpm
       - apk
+    replaces:
+      - tedge-nodered-plugin-ng
 
     scripts:
       preinstall: ./packaging/preinst

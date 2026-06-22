@@ -1,4 +1,4 @@
-FROM ghcr.io/thin-edge/tedge-demo-main-systemd:20241115.1635
+FROM ghcr.io/thin-edge/tedge-demo-main-systemd:latest
 
 ARG TARGETPLATFORM
 
