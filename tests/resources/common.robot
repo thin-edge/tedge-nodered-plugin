@@ -13,6 +13,10 @@ Library    DeviceLibrary    bootstrap_script=bootstrap.sh
 
 *** Keywords ***
 
+Teardown Device
+    Collect Logs
+    Cumulocity.Delete Managed Object And Device User    external_id=${DEVICE_SN}
+
 Collect Logs
     Collect Workflow Logs
     Collect Systemd Logs
