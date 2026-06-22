@@ -2,6 +2,7 @@
 Resource    ../resources/common.robot
 
 Suite Setup    Suite Setup
+Suite Teardown    Teardown Device
 Test Teardown    Collect Logs
 
 *** Variables ***
