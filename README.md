@@ -2,7 +2,7 @@
 
 ## Pre-requisites
 
-Naturally, node-red must be installed in order to use this plugin as the plugin uses the node-red REST api to managed node-red flows. We recommend installing node-red in a container using the [tedge-container-plugin-ng](https://github.com/thin-edge/tedge-container-plugin/tree/next) thin-edge.io software management plugin.
+Naturally, node-red must be installed in order to use this plugin as the plugin uses the node-red REST api to managed node-red flows. We recommend installing node-red in a container using the [tedge-container-plugin-ng](https://github.com/thin-edge/tedge-container-plugin) thin-edge.io software management plugin.
 
 node-red supports two different modes, one is the classic mode when flows are just simple json files (e.g. `flows.json`), and the other is the project mode where a flows.json is deployed via a git repository. The former (simple json files) is more flexible and widely used, so it is the recommended way to deploy flows to a device.
 
